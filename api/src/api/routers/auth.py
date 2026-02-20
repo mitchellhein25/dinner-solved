@@ -39,7 +39,7 @@ async def request_link(
         import resend
         resend.api_key = os.environ["RESEND_API_KEY"]
         resend.Emails.send({
-            "from": "Dinner Solved <noreply@dinner-solved.app>",
+            "from": "Dinner Solved <onboarding@resend.dev>",
             "to": [body.email],
             "subject": "Your Dinner Solved sign-in link",
             "html": (
