@@ -32,7 +32,7 @@ jobs:
         run: python -m pytest tests/unit --tb=short -q
 
   # -------------------------------------------------------------------------
-  # Frontend — type check + production build
+  # Frontend — type check + build
   # -------------------------------------------------------------------------
   web:
     name: Web — type-check + build
@@ -58,4 +58,34 @@ jobs:
       - name: Production build
         run: npm run build
         env:
-          VITE_API_BASE_URL: https://placeholder.example.com
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://placeholder.example.com' }}
+
+      # Upload dist/ so the deploy job can use it without rebuilding
+      - name: Upload build artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 1
+
+  # -------------------------------------------------------------------------
+  # Deploy — only on main, only after web passes
+  # -------------------------------------------------------------------------
+  deploy-web:
+    name: Deploy to Cloudflare Pages
+    needs: web
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dist
+
+      - name: Deploy to Cloudflare Pages
+        run: npx wrangler pages deploy dist --project-name=dinner-solved
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
