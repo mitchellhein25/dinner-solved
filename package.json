@@ -1,0 +1,17 @@
+{
+  "name": "dinner-solved",
+  "private": true,
+  "scripts": {
+    "install:api": "pip install -e \"api/[dev]\"",
+    "db": "docker compose up db -d",
+    "migrate": "cd api && alembic upgrade head",
+    "api": "cd api && uvicorn api.main:app --reload --port 8000",
+    "web": "cd web && npm run dev",
+    "dev": "npm run db && npm run migrate && concurrently -n API,WEB -c cyan,magenta \"npm run api\" \"npm run web\"",
+    "down": "docker compose down",
+    "reset": "docker compose down -v"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

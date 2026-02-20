@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python -c:*)",
+      "Bash(PYTHONPATH=src python:*)",
+      "Bash(PYTHONPATH=src alembic init:*)",
+      "Bash(python -m alembic init:*)",
+      "Bash(DATABASE_URL=\"postgresql://user:password@localhost:5432/dinner_solved\" python -m alembic:*)",
+      "Bash(python -m alembic revision:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(cd:*)",
+      "Bash(alembic upgrade:*)"
+    ]
+  }
+}
