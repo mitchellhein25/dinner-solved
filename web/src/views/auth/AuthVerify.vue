@@ -37,7 +37,7 @@ onMounted(async () => {
   <div class="verify-page">
     <div class="verify-card card">
       <template v-if="!error">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner />
         <p>Signing you in…</p>
       </template>
       <template v-else>
