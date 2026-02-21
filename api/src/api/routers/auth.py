@@ -20,6 +20,8 @@ class VerifyBody(BaseModel):
 
 class VerifyResponse(BaseModel):
     household_id: str
+    email: str
+    is_onboarded: bool
 
 
 @router.post("/request-link", status_code=204)
@@ -57,7 +59,9 @@ async def verify_token(
     body: VerifyBody,
     auth_repo: Annotated[AuthRepository, Depends(get_auth_repo)],
 ) -> VerifyResponse:
-    household_id = await auth_repo.validate_and_consume_token(body.token)
-    if household_id is None:
+    result = await auth_repo.validate_and_consume_token(body.token)
+    if result is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return VerifyResponse(household_id=str(household_id))
+    household_id, email = result
+    is_onboarded = await auth_repo.has_meal_template(household_id)
+    return VerifyResponse(household_id=str(household_id), email=email, is_onboarded=is_onboarded)

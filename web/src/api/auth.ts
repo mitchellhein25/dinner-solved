@@ -5,5 +5,5 @@ export const authApi = {
     apiClient.post('/api/auth/request-link', { email }),
 
   verifyToken: (token: string) =>
-    apiClient.post<{ household_id: string }>('/api/auth/verify', { token }),
+    apiClient.post<{ household_id: string; email: string; is_onboarded: boolean }>('/api/auth/verify', { token }),
 }

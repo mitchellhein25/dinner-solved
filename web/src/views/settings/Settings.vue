@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import SaveButton from '@/components/SaveButton.vue'
 import { preferencesApi } from '@/api/preferences'
 import { useAuthStore } from '@/stores/auth'
 import { useHouseholdStore } from '@/stores/household'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { useSaveState } from '@/composables/useSaveState'
 import type { HouseholdMember, UserPreferences } from '@/types'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -17,9 +18,30 @@ type Tab = 'household' | 'preferences'
 const tab = ref<Tab>('household')
 
 // ---- Household tab ----
+const EMOJIS = ['👩', '👨', '👧', '👦', '👶', '🧒', '👴', '👵', '🧑']
+
 const members = ref<HouseholdMember[]>([])
-const savingMembers = ref(false)
-const membersError = ref<string | null>(null)
+const {
+  isDirty: householdDirty,
+  saving: householdSaving,
+  success: householdSuccess,
+  error: householdError,
+  save: saveHousehold,
+  markSaved: markHouseholdSaved,
+} = useSaveState(
+  () => members.value,
+  () => householdStore.saveMembers(members.value),
+)
+
+// Add-member form
+const showAddForm = ref(false)
+const nameInput = ref('')
+const emojiInput = ref('👩')
+
+// Inline edit state
+const editingIdx = ref<number | null>(null)
+const editName = ref('')
+const editEmoji = ref('👩')
 
 const STEP = 0.25
 const MIN = 0.25
@@ -31,16 +53,42 @@ function adjustServing(member: HouseholdMember, delta: number) {
   member.serving_size = next
 }
 
-async function saveMembers() {
-  savingMembers.value = true
-  membersError.value = null
-  try {
-    await householdStore.saveMembers(members.value)
-  } catch (e) {
-    membersError.value = (e as Error).message
-  } finally {
-    savingMembers.value = false
-  }
+function addMember() {
+  const name = nameInput.value.trim()
+  if (!name) return
+  members.value.push({
+    id: crypto.randomUUID(),
+    name,
+    emoji: emojiInput.value,
+    serving_size: 1.0,
+  })
+  nameInput.value = ''
+  emojiInput.value = '👩'
+  showAddForm.value = false
+}
+
+function removeMember(idx: number) {
+  members.value.splice(idx, 1)
+  if (editingIdx.value === idx) editingIdx.value = null
+}
+
+function startEdit(idx: number) {
+  editingIdx.value = idx
+  editName.value = members.value[idx].name
+  editEmoji.value = members.value[idx].emoji
+}
+
+function commitEdit() {
+  const idx = editingIdx.value
+  if (idx === null) return
+  const name = editName.value.trim()
+  if (name) members.value[idx].name = name
+  members.value[idx].emoji = editEmoji.value
+  editingIdx.value = null
+}
+
+function cancelEdit() {
+  editingIdx.value = null
 }
 
 // ---- Preferences tab ----
@@ -48,8 +96,17 @@ const prefs = ref<UserPreferences | null>(null)
 const likedInput = ref('')
 const dislikedInput = ref('')
 const cuisineInput = ref('')
-const savingPrefs = ref(false)
-const prefsError = ref<string | null>(null)
+const {
+  isDirty: prefsDirty,
+  saving: prefsSaving,
+  success: prefsSuccess,
+  error: prefsError,
+  save: savePrefs,
+  markSaved: markPrefsSaved,
+} = useSaveState(
+  () => prefs.value,
+  async () => { if (prefs.value) await preferencesApi.save(prefs.value) },
+)
 
 function addLiked() {
   const v = likedInput.value.trim()
@@ -75,19 +132,6 @@ function addCuisine() {
 }
 function removeCuisine(i: number) { prefs.value?.cuisine_preferences.splice(i, 1) }
 
-async function savePrefs() {
-  if (!prefs.value) return
-  savingPrefs.value = true
-  prefsError.value = null
-  try {
-    await preferencesApi.save(prefs.value)
-  } catch (e) {
-    prefsError.value = (e as Error).message
-  } finally {
-    savingPrefs.value = false
-  }
-}
-
 function resetOnboarding() {
   onboardingStore.reset()
   router.push('/welcome')
@@ -101,6 +145,7 @@ function logout() {
 onMounted(async () => {
   await householdStore.fetchMembers()
   members.value = householdStore.members.map((m) => ({ ...m }))
+  markHouseholdSaved()
   try {
     const res = await preferencesApi.get()
     prefs.value = res.data
@@ -112,6 +157,7 @@ onMounted(async () => {
       cuisine_preferences: [],
     }
   }
+  markPrefsSaved()
 })
 </script>
 
@@ -138,21 +184,89 @@ onMounted(async () => {
       <div v-if="tab === 'household'">
         <h2 class="section-title">Members &amp; Serving Sizes</h2>
         <div class="member-list">
-          <div v-for="member in members" :key="member.id" class="member-row card">
-            <span class="member-row__emoji">{{ member.emoji }}</span>
-            <span class="member-row__name">{{ member.name }}</span>
-            <div class="stepper">
-              <button class="stepper__btn" :disabled="member.serving_size <= MIN" @click="adjustServing(member, -STEP)">−</button>
-              <span class="stepper__val">{{ member.serving_size.toFixed(2) }}</span>
-              <button class="stepper__btn" :disabled="member.serving_size >= MAX" @click="adjustServing(member, STEP)">+</button>
-            </div>
+          <div v-for="(member, idx) in members" :key="member.id" class="member-row card">
+            <!-- Edit mode -->
+            <template v-if="editingIdx === idx">
+              <div class="edit-form">
+                <div class="edit-form__emoji-row">
+                  <button
+                    v-for="e in EMOJIS"
+                    :key="e"
+                    class="emoji-btn"
+                    :class="{ 'emoji-btn--active': editEmoji === e }"
+                    type="button"
+                    @click="editEmoji = e"
+                  >{{ e }}</button>
+                </div>
+                <div class="edit-form__row">
+                  <input
+                    v-model="editName"
+                    class="input"
+                    type="text"
+                    placeholder="Name"
+                    maxlength="40"
+                    @keydown.enter.prevent="commitEdit"
+                    @keydown.escape.prevent="cancelEdit"
+                  />
+                  <div class="stepper">
+                    <button class="stepper__btn" :disabled="member.serving_size <= MIN" @click="adjustServing(member, -STEP)">−</button>
+                    <span class="stepper__val">{{ member.serving_size.toFixed(2) }}</span>
+                    <button class="stepper__btn" :disabled="member.serving_size >= MAX" @click="adjustServing(member, STEP)">+</button>
+                  </div>
+                  <button class="btn btn--ghost btn--sm" type="button" @click="commitEdit">✓</button>
+                  <button class="btn btn--ghost btn--sm" type="button" @click="cancelEdit">✗</button>
+                </div>
+              </div>
+            </template>
+
+            <!-- View mode -->
+            <template v-else>
+              <span class="member-row__emoji">{{ member.emoji }}</span>
+              <span class="member-row__name">{{ member.name }}</span>
+              <div class="stepper">
+                <button class="stepper__btn" :disabled="member.serving_size <= MIN" @click="adjustServing(member, -STEP)">−</button>
+                <span class="stepper__val">{{ member.serving_size.toFixed(2) }}</span>
+                <button class="stepper__btn" :disabled="member.serving_size >= MAX" @click="adjustServing(member, STEP)">+</button>
+              </div>
+              <button class="btn btn--ghost btn--sm icon-btn" type="button" title="Edit" @click="startEdit(idx)">✏️</button>
+              <button class="btn btn--ghost btn--sm icon-btn" type="button" title="Remove" @click="removeMember(idx)">❌</button>
+            </template>
           </div>
         </div>
-        <div v-if="membersError" class="error-banner" style="margin: 0.75rem 0">{{ membersError }}</div>
-        <button class="btn btn--primary btn--full" style="margin-top: 1rem" :disabled="savingMembers" @click="saveMembers">
-          <LoadingSpinner v-if="savingMembers" size="sm" />
-          <span v-else>Save Household</span>
-        </button>
+
+        <!-- Add-member toggle / form -->
+        <template v-if="editingIdx === null">
+          <button v-if="!showAddForm" class="btn btn--ghost btn--sm" style="margin-top: 0.75rem" type="button" @click="showAddForm = true">
+            + Add Member
+          </button>
+          <div v-else class="add-form" style="margin-top: 0.75rem">
+            <div class="add-form__emoji-row">
+              <button
+                v-for="e in EMOJIS"
+                :key="e"
+                class="emoji-btn"
+                :class="{ 'emoji-btn--active': emojiInput === e }"
+                type="button"
+                @click="emojiInput = e"
+              >{{ e }}</button>
+            </div>
+            <div class="add-form__row">
+              <input
+                v-model="nameInput"
+                class="input"
+                type="text"
+                placeholder="Name (e.g. Mitch)"
+                maxlength="40"
+                @keydown.enter.prevent="addMember"
+              />
+              <button class="btn btn--ghost" type="button" @click="addMember">Add</button>
+              <button class="btn btn--ghost btn--sm" type="button" @click="showAddForm = false; nameInput = ''; emojiInput = '👩'">Cancel</button>
+            </div>
+          </div>
+        </template>
+
+        <div v-if="householdError" class="error-banner" style="margin: 0.75rem 0">{{ householdError }}</div>
+        <SaveButton label="Save Household" :isDirty="householdDirty" :saving="householdSaving" :success="householdSuccess" @save="saveHousehold" />
 
         <div class="divider" style="margin: 2rem 0"></div>
         <h2 class="section-title">Meal Template</h2>
@@ -166,7 +280,7 @@ onMounted(async () => {
         <div class="divider" style="margin: 2rem 0"></div>
         <h2 class="section-title">Account</h2>
         <p class="text-muted" style="margin-bottom: 0.5rem; font-size: 0.875rem">
-          Household ID: <code class="household-id">{{ authStore.householdId?.slice(0, 8) }}…</code>
+          Signed in as <strong>{{ authStore.email }}</strong>
         </p>
         <button class="btn btn--ghost btn--sm" style="margin-bottom: 1rem" @click="logout">
           Log Out
@@ -225,10 +339,7 @@ onMounted(async () => {
         </div>
 
         <div v-if="prefsError" class="error-banner" style="margin: 0.75rem 0">{{ prefsError }}</div>
-        <button class="btn btn--primary btn--full" style="margin-top: 1rem" :disabled="savingPrefs" @click="savePrefs">
-          <LoadingSpinner v-if="savingPrefs" size="sm" />
-          <span v-else>Save Preferences</span>
-        </button>
+        <SaveButton label="Save Preferences" :isDirty="prefsDirty" :saving="prefsSaving" :success="prefsSuccess" @save="savePrefs" />
       </div>
     </div>
   </div>
@@ -240,7 +351,7 @@ onMounted(async () => {
 .tab--active { background: var(--accent); color: #fff; }
 .section-title { font-family: var(--font-display); font-size: 1.25rem; margin-bottom: 0.875rem; }
 .member-list { display: flex; flex-direction: column; gap: 0.625rem; }
-.member-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; }
+.member-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; flex-wrap: wrap; }
 .member-row__emoji { font-size: 1.375rem; }
 .member-row__name { flex: 1; font-weight: 500; }
 .stepper { display: flex; align-items: center; gap: 0.5rem; }
@@ -256,5 +367,13 @@ onMounted(async () => {
 .tag--red { background: #fef2f2; color: #c0392b; }
 .tag--accent { background: var(--accent-light); color: var(--accent); }
 .add-row { display: flex; gap: 0.5rem; }
-.household-id { font-size: 0.8125rem; background: var(--surface); padding: 0.1rem 0.4rem; border-radius: var(--radius-sm); letter-spacing: 0.03em; }
+.icon-btn { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+.edit-form { width: 100%; padding: 0.25rem 0; }
+.edit-form__emoji-row { display: flex; gap: 0.375rem; flex-wrap: wrap; margin-bottom: 0.625rem; }
+.edit-form__row { display: flex; align-items: center; gap: 0.5rem; }
+.add-form { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+.add-form__emoji-row { display: flex; gap: 0.375rem; flex-wrap: wrap; margin-bottom: 0.625rem; }
+.add-form__row { display: flex; gap: 0.5rem; }
+.emoji-btn { font-size: 1.5rem; background: none; border: 2px solid transparent; border-radius: 8px; padding: 0.125rem 0.25rem; cursor: pointer; transition: border-color 0.15s; }
+.emoji-btn--active { border-color: var(--accent); }
 </style>
