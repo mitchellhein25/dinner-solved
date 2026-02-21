@@ -23,7 +23,14 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 
 onMounted(async () => {
-  await householdStore.fetchMembers()
+  await Promise.all([householdStore.fetchMembers(), planStore.fetchTemplate()])
+  if (planStore.template?.slots.length) {
+    slots.value = planStore.template.slots.map((s) => ({
+      ...s,
+      days: [...s.days],
+      member_ids: [...s.member_ids],
+    }))
+  }
 })
 
 function addSlot() {
@@ -75,7 +82,7 @@ async function finish() {
   error.value = null
   try {
     await planStore.saveTemplate({
-      id: crypto.randomUUID(),
+      id: planStore.template?.id ?? crypto.randomUUID(),
       slots: slots.value,
     })
     onboardingStore.complete()

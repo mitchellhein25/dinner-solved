@@ -21,8 +21,9 @@ onMounted(async () => {
   }
   try {
     const res = await authApi.verifyToken(token)
-    authStore.setHousehold(res.data.household_id)
-    if (onboardingStore.isComplete) {
+    authStore.setHousehold(res.data.household_id, res.data.email)
+    if (res.data.is_onboarded) {
+      onboardingStore.complete()
       router.replace('/')
     } else {
       router.replace('/welcome')

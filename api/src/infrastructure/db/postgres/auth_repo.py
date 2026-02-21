@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import HouseholdRow, MagicLinkTokenRow
+from .models import HouseholdRow, MagicLinkTokenRow, MealPlanTemplateRow
 
 TOKEN_TTL_MINUTES = 15
 
@@ -38,30 +38,39 @@ class AuthRepository:
         await self._session.flush()
         return str(token)
 
-    async def validate_and_consume_token(self, token_str: str) -> Optional[UUID]:
+    async def validate_and_consume_token(self, token_str: str) -> Optional[tuple[UUID, str]]:
         try:
             token_uuid = UUID(token_str)
         except ValueError:
             return None
 
         result = await self._session.execute(
-            select(MagicLinkTokenRow).where(MagicLinkTokenRow.token == token_uuid)
+            select(MagicLinkTokenRow, HouseholdRow)
+            .join(HouseholdRow, HouseholdRow.id == MagicLinkTokenRow.household_id)
+            .where(MagicLinkTokenRow.token == token_uuid)
         )
-        row = result.scalar_one_or_none()
+        pair = result.one_or_none()
 
-        if not row:
+        if not pair:
             return None
-        if row.used_at is not None:
+        token_row, household_row = pair
+        if token_row.used_at is not None:
             return None
-        if datetime.utcnow() > row.expires_at:
+        if datetime.utcnow() > token_row.expires_at:
             return None
 
-        row.used_at = datetime.utcnow()
+        token_row.used_at = datetime.utcnow()
         await self._session.flush()
-        return row.household_id
+        return token_row.household_id, household_row.email
 
     async def household_exists(self, household_id: UUID) -> bool:
         result = await self._session.execute(
             select(HouseholdRow.id).where(HouseholdRow.id == household_id)
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def has_meal_template(self, household_id: UUID) -> bool:
+        result = await self._session.execute(
+            select(MealPlanTemplateRow.id).where(MealPlanTemplateRow.household_id == household_id)
         )
         return result.scalar_one_or_none() is not None
