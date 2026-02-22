@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import { useRecipesStore } from '@/stores/recipes'
-import { onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const recipesStore = useRecipesStore()
+
+const search = ref('')
+
+const filteredRecipes = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return recipesStore.recipes
+  return recipesStore.recipes.filter((r) => r.name.toLowerCase().includes(q))
+})
 
 onMounted(() => recipesStore.fetchRecipes())
 
@@ -23,6 +31,13 @@ watch([() => recipesStore.sort, () => recipesStore.favoritesOnly], () => {
     </nav>
 
     <div class="page__body container">
+      <input
+        v-model="search"
+        class="input search-input"
+        type="search"
+        placeholder="🔍 Search recipes…"
+      />
+
       <div class="filter-bar">
         <select v-model="recipesStore.sort" class="input select filter-bar__sort">
           <option value="recent">Most Recent</option>
@@ -47,14 +62,16 @@ watch([() => recipesStore.sort, () => recipesStore.favoritesOnly], () => {
         {{ recipesStore.error }}
       </div>
 
-      <div v-else-if="recipesStore.recipes.length === 0" class="empty-state">
-        <p>No recipes yet.</p>
-        <p class="empty-state__hint">Confirm a meal plan to start building your history.</p>
+      <div v-else-if="filteredRecipes.length === 0" class="empty-state">
+        <p>{{ recipesStore.recipes.length === 0 ? 'No recipes yet.' : 'No matches.' }}</p>
+        <p v-if="recipesStore.recipes.length === 0" class="empty-state__hint">
+          Confirm a meal plan to start building your history.
+        </p>
       </div>
 
       <div v-else class="recipe-grid">
         <button
-          v-for="recipe in recipesStore.recipes"
+          v-for="recipe in filteredRecipes"
           :key="recipe.id"
           class="recipe-card card"
           @click="router.push(`/recipes/${recipe.id}`)"
@@ -80,6 +97,10 @@ watch([() => recipesStore.sort, () => recipesStore.favoritesOnly], () => {
   display: flex;
   justify-content: center;
   padding: 3rem 0;
+}
+
+.search-input {
+  margin-bottom: 0.625rem;
 }
 
 .filter-bar {

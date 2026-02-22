@@ -68,6 +68,16 @@ export interface UserPreferences {
   cuisine_preferences: string[]
 }
 
+export interface ConfirmedAssignment {
+  slot_id: string
+  recipe: RecipeListItem
+}
+
+export interface ConfirmedPlan {
+  week_start_date: string
+  assignments: ConfirmedAssignment[]
+}
+
 /** Per-slot state in the planning UI. */
 export interface SlotState {
   slot: MealSlot

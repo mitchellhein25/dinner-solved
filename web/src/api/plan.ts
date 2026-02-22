@@ -1,4 +1,4 @@
-import type { MealPlanTemplate, MealSlot, Recipe, RecipeSuggestion, WeeklyPlan } from '@/types'
+import type { ConfirmedPlan, MealPlanTemplate, MealSlot, Recipe, RecipeSuggestion, WeeklyPlan } from '@/types'
 import { apiClient } from './client'
 
 export interface SlotOptionsData {
@@ -50,4 +50,7 @@ export const planApi = {
       week_start_date: weekStartDate,
       suggestions,
     }),
+
+  getConfirmedPlan: (weekStartDate: string) =>
+    apiClient.get<ConfirmedPlan>(`/api/plan/${weekStartDate}`),
 }

@@ -50,7 +50,7 @@ async function exportCsv() {
 <template>
   <div class="page">
     <nav class="page__nav">
-      <router-link class="btn btn--ghost btn--sm" to="/suggestions">← Recipes</router-link>
+      <router-link class="btn btn--ghost btn--sm" to="/suggestions">← Plan</router-link>
       <span class="page__nav-brand">Grocery List</span>
       <router-link class="btn btn--ghost btn--sm" to="/">Home</router-link>
     </nav>
@@ -71,7 +71,12 @@ async function exportCsv() {
           <h3 class="category-section__title">{{ CATEGORY_LABELS[category] ?? category }}</h3>
           <div class="item-list">
             <div v-for="item in items" :key="item.name + item.unit" class="item-row">
-              <span class="item-row__name">{{ item.name }}</span>
+              <div class="item-row__left">
+                <span class="item-row__name">{{ item.name }}</span>
+                <span v-if="item.recipe_names.length > 0" class="item-row__recipes">
+                  {{ item.recipe_names.join(', ') }}
+                </span>
+              </div>
               <span class="item-row__qty">{{ item.quantity }} {{ item.unit }}</span>
             </div>
           </div>
@@ -98,9 +103,11 @@ async function exportCsv() {
 .category-section { margin-bottom: 1.5rem; }
 .category-section__title { font-family: var(--font-display); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-light); margin-bottom: 0.5rem; }
 .item-list { display: flex; flex-direction: column; gap: 0.375rem; }
-.item-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.item-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.item-row__left { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; }
 .item-row__name { font-size: 0.9375rem; }
-.item-row__qty { font-size: 0.875rem; color: var(--ink-light); }
+.item-row__recipes { font-size: 0.75rem; color: var(--ink-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-row__qty { font-size: 0.875rem; color: var(--ink-light); white-space: nowrap; flex-shrink: 0; }
 .empty-state { text-align: center; padding: 2rem; color: var(--ink-light); }
 .export-row { margin-top: 1.5rem; }
 </style>

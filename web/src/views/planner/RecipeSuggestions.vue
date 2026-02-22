@@ -129,206 +129,193 @@ async function confirm() {
     </nav>
 
     <div class="page__body planner-body">
-      <!-- Error banner (shown in both states) -->
-        <div v-if="planStore.error" class="error-banner">
-          {{ planStore.error }}
-          <span v-if="planStore.rateLimitError && budgetCountdown"> Resets in {{ budgetCountdown }}.</span>
-          <button
-            v-if="!planStore.rateLimitError"
-            class="btn btn--sm btn--ghost"
-            style="margin-left: 0.5rem"
-            @click="planStore.suggest()"
-          >
-            Retry
-          </button>
+      <!-- Error banner -->
+      <div v-if="planStore.error" class="error-banner">
+        {{ planStore.error }}
+        <span v-if="planStore.rateLimitError && budgetCountdown"> Resets in {{ budgetCountdown }}.</span>
+        <button
+          v-if="!planStore.rateLimitError"
+          class="btn btn--sm btn--ghost"
+          style="margin-left: 0.5rem"
+          @click="planStore.suggest()"
+        >
+          Retry
+        </button>
+      </div>
+
+      <!-- Budget bar (loaded state only) -->
+      <div v-if="planStore.slotStates.length > 0" class="budget-bar">
+        <div class="budget-bar__info">
+          <span class="budget-bar__label">
+            {{ planStore.budget.remaining.toFixed(1) }} / 3 generations remaining
+          </span>
+          <span v-if="budgetCountdown" class="budget-bar__reset">
+            · resets in {{ budgetCountdown }}
+          </span>
         </div>
+        <div class="budget-bar__track">
+          <div
+            class="budget-bar__fill"
+            :style="{ width: `${(planStore.budget.remaining / 3) * 100}%` }"
+          />
+        </div>
+      </div>
 
-        <!-- ══════════════════════════════════════════════════════════════
-             INITIAL STATE — no suggestions generated yet
-             ══════════════════════════════════════════════════════════════ -->
-        <div v-if="planStore.slotStates.length === 0" class="initial-state">
-          <!-- Blank slot list -->
-          <div v-if="planStore.template" class="slot-list">
-            <div
-              v-for="slot in planStore.template.slots"
-              :key="slot.id"
-              class="slot-block slot-block--blank"
-            >
-              <div class="slot-block__header">
-                <div class="slot-block__header-left">
-                  <span class="chip">{{ MEAL_TYPE_LABELS[slot.meal_type] }}</span>
-                  <span class="slot-block__days">
-                    {{ slot.days.map((d) => DAY_LABELS[d]).join(', ') }}
-                  </span>
-                </div>
-              </div>
-              <div class="slot-block__blank-body">No recipe chosen yet</div>
-            </div>
-          </div>
-
-          <!-- Initial prompt -->
-          <div class="initial-prompt">
-            <p class="initial-prompt__hint">
-              Describe what you're after this week, or just generate suggestions.
-            </p>
-            <ChatInput
-              placeholder="e.g. Quick weeknights, something Asian-inspired…"
-              :loading="planStore.loading"
-              @send="handleInitialChat"
-            />
+      <!-- Two-column layout (always rendered) -->
+      <div class="layout">
+        <main class="layout__main">
+          <!-- Top controls row -->
+          <div class="top-controls">
             <button
-              class="btn btn--primary btn--full"
-              :disabled="planStore.loading || planStore.budget.remaining < 1.0"
+              v-if="planStore.slotStates.length > 0"
+              class="btn btn--ghost btn--sm"
+              :disabled="!canRegenerateAll || planStore.loading"
               @click="handleGenerateAll"
             >
               <LoadingSpinner v-if="planStore.loading" size="sm" />
-              <span v-else>✨ Generate suggestions</span>
+              <span v-else>↺ Regenerate All</span>
+            </button>
+            <span v-else />
+            <button class="btn btn--ghost btn--sm pool-toggle" @click="poolOpen = !poolOpen">
+              Browse history
             </button>
           </div>
-        </div>
 
-        <!-- ══════════════════════════════════════════════════════════════
-             LOADED STATE — suggestions available
-             ══════════════════════════════════════════════════════════════ -->
-        <template v-else>
-          <!-- Budget bar -->
-          <div class="budget-bar">
-            <div class="budget-bar__info">
-              <span class="budget-bar__label">
-                {{ planStore.budget.remaining.toFixed(1) }} / 3 generations remaining
-              </span>
-              <span v-if="budgetCountdown" class="budget-bar__reset">
-                · resets in {{ budgetCountdown }}
-              </span>
-            </div>
-            <div class="budget-bar__track">
+          <!-- ── INITIAL STATE ── -->
+          <template v-if="planStore.slotStates.length === 0">
+            <div v-if="planStore.template" class="slot-list">
               <div
-                class="budget-bar__fill"
-                :style="{ width: `${(planStore.budget.remaining / 3) * 100}%` }"
-              />
-            </div>
-          </div>
-
-          <!-- Desktop layout: slots left, pool right -->
-          <div class="layout">
-            <!-- Left panel: slot list + controls -->
-            <main class="layout__main">
-              <!-- Top controls -->
-              <div class="top-controls">
-                <button
-                  class="btn btn--ghost btn--sm"
-                  :disabled="!canRegenerateAll || planStore.loading"
-                  @click="handleGenerateAll"
-                >
-                  <LoadingSpinner v-if="planStore.loading" size="sm" />
-                  <span v-else>↺ Regenerate All</span>
-                </button>
-
-                <!-- Mobile: pool toggle -->
-                <button
-                  class="btn btn--ghost btn--sm pool-toggle"
-                  @click="poolOpen = !poolOpen"
-                >
-                  Browse suggestions
-                </button>
-              </div>
-
-              <!-- Slot cards -->
-              <div class="slot-list">
-                <div
-                  v-for="ss in planStore.slotStates"
-                  :key="ss.slot.id"
-                  class="slot-block"
-                  :class="{ 'slot-block--locked': ss.locked }"
-                >
-                  <div class="slot-block__header">
-                    <div class="slot-block__header-left">
-                      <span class="chip">{{ MEAL_TYPE_LABELS[ss.slot.meal_type] }}</span>
-                      <span class="slot-block__days">{{ slotLabel(ss) }}</span>
-                      <span class="slot-block__servings">{{ servingTotal(ss) }} srv</span>
-                    </div>
-                    <button
-                      class="lock-btn"
-                      :class="{ 'lock-btn--locked': ss.locked }"
-                      :title="ss.locked ? 'Unlock slot' : ss.chosenIndex === null ? 'Choose a recipe to lock' : 'Lock slot'"
-                      :disabled="!ss.locked && ss.chosenIndex === null"
-                      @click="planStore.toggleLock(ss.slot.id)"
-                    >
-                      {{ ss.locked ? '🔒' : '🔓' }}
-                    </button>
-                  </div>
-
-                  <div class="slot-block__options">
-                    <SlotOptionCard
-                      v-for="(recipe, idx) in ss.options"
-                      :key="recipe.id"
-                      :recipe="recipe"
-                      :selected="ss.chosenIndex === idx"
-                      :disabled="ss.locked"
-                      @select="planStore.chooseOption(ss.slot.id, idx)"
-                    />
-                  </div>
-
-                  <div class="slot-block__footer">
-                    <button
-                      class="btn btn--ghost btn--sm"
-                      :disabled="ss.locked || ss.regenerating || planStore.budget.remaining < 0.5"
-                      @click="handleRegenerateSlot(ss.slot.id)"
-                    >
-                      <LoadingSpinner v-if="ss.regenerating" size="sm" />
-                      <span v-else>↺ Regenerate this slot</span>
-                    </button>
+                v-for="slot in planStore.template.slots"
+                :key="slot.id"
+                class="slot-block slot-block--blank"
+              >
+                <div class="slot-block__header">
+                  <div class="slot-block__header-left">
+                    <span class="chip">{{ MEAL_TYPE_LABELS[slot.meal_type] }}</span>
+                    <span class="slot-block__days">
+                      {{ slot.days.map((d) => DAY_LABELS[d]).join(', ') }}
+                    </span>
                   </div>
                 </div>
-              </div>
-
-              <!-- Chat refine -->
-              <div class="chat-section">
-                <p class="chat-section__hint">
-                  Not quite right? Ask to swap a recipe, change a cuisine, or make it lighter.
-                  Locked slots won't be changed.
-                </p>
-                <ChatInput :loading="planStore.chatLoading" @send="handleChat" />
-              </div>
-
-              <!-- Confirm -->
-              <button
-                class="btn btn--primary btn--full confirm-btn"
-                :disabled="!planStore.allSlotsChosen || planStore.loading"
-                @click="confirm"
-              >
-                Confirm Plan & See Grocery List →
-              </button>
-            </main>
-
-            <!-- Right panel: session pool (desktop only) -->
-            <aside class="layout__pool">
-              <SessionPool
-                :recipes="planStore.sessionPool"
-                :slot-states="planStore.slotStates"
-                :history-items="planStore.poolHistory"
-                @assign="handleAssign"
-                @assign-from-history="handleAssignFromHistory"
-              />
-            </aside>
-          </div>
-
-          <!-- Mobile bottom drawer for session pool -->
-          <Teleport to="body">
-            <div v-if="poolOpen" class="drawer-backdrop" @click.self="poolOpen = false">
-              <div class="drawer">
-                <div class="drawer__handle-bar" @click="poolOpen = false" />
-                <SessionPool
-                  :recipes="planStore.sessionPool"
-                  :slot-states="planStore.slotStates"
-                  :history-items="planStore.poolHistory"
-                  @assign="handleAssign"
-                  @assign-from-history="handleAssignFromHistory"
-                />
+                <div class="slot-block__blank-body">No recipe chosen yet</div>
               </div>
             </div>
-          </Teleport>
-        </template>
+
+            <div class="initial-prompt">
+              <p class="initial-prompt__hint">
+                Describe what you're after this week, or just generate suggestions.
+              </p>
+              <ChatInput
+                placeholder="e.g. Quick weeknights, something Asian-inspired…"
+                :loading="planStore.loading"
+                @send="handleInitialChat"
+              />
+              <button
+                class="btn btn--primary btn--full"
+                :disabled="planStore.loading || planStore.budget.remaining < 1.0"
+                @click="handleGenerateAll"
+              >
+                <LoadingSpinner v-if="planStore.loading" size="sm" />
+                <span v-else>✨ Generate suggestions</span>
+              </button>
+            </div>
+          </template>
+
+          <!-- ── LOADED STATE ── -->
+          <template v-else>
+            <div class="slot-list">
+              <div
+                v-for="ss in planStore.slotStates"
+                :key="ss.slot.id"
+                class="slot-block"
+                :class="{ 'slot-block--locked': ss.locked }"
+              >
+                <div class="slot-block__header">
+                  <div class="slot-block__header-left">
+                    <span class="chip">{{ MEAL_TYPE_LABELS[ss.slot.meal_type] }}</span>
+                    <span class="slot-block__days">{{ slotLabel(ss) }}</span>
+                    <span class="slot-block__servings">{{ servingTotal(ss) }} srv</span>
+                  </div>
+                  <button
+                    class="lock-btn"
+                    :class="{ 'lock-btn--locked': ss.locked }"
+                    :title="ss.locked ? 'Unlock slot' : ss.chosenIndex === null ? 'Choose a recipe to lock' : 'Lock slot'"
+                    :disabled="!ss.locked && ss.chosenIndex === null"
+                    @click="planStore.toggleLock(ss.slot.id)"
+                  >
+                    {{ ss.locked ? '🔒' : '🔓' }}
+                  </button>
+                </div>
+
+                <div class="slot-block__options">
+                  <SlotOptionCard
+                    v-for="(recipe, idx) in ss.options"
+                    :key="recipe.id"
+                    :recipe="recipe"
+                    :selected="ss.chosenIndex === idx"
+                    :disabled="ss.locked"
+                    @select="planStore.chooseOption(ss.slot.id, idx)"
+                  />
+                </div>
+
+                <div class="slot-block__footer">
+                  <button
+                    class="btn btn--ghost btn--sm"
+                    :disabled="ss.locked || ss.regenerating || planStore.budget.remaining < 0.5"
+                    @click="handleRegenerateSlot(ss.slot.id)"
+                  >
+                    <LoadingSpinner v-if="ss.regenerating" size="sm" />
+                    <span v-else>↺ Regenerate this slot</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat-section">
+              <p class="chat-section__hint">
+                Not quite right? Ask to swap a recipe, change a cuisine, or make it lighter.
+                Locked slots won't be changed.
+              </p>
+              <ChatInput :loading="planStore.chatLoading" @send="handleChat" />
+            </div>
+
+            <button
+              class="btn btn--primary btn--full confirm-btn"
+              :disabled="!planStore.allSlotsChosen || planStore.loading"
+              @click="confirm"
+            >
+              Confirm Plan & See Grocery List →
+            </button>
+          </template>
+        </main>
+
+        <!-- Right panel: session pool (desktop only, always rendered) -->
+        <aside class="layout__pool">
+          <SessionPool
+            :recipes="planStore.sessionPool"
+            :slot-states="planStore.slotStates"
+            :history-items="planStore.poolHistory"
+            @assign="handleAssign"
+            @assign-from-history="handleAssignFromHistory"
+          />
+        </aside>
+      </div>
+
+      <!-- Mobile bottom drawer (always available) -->
+      <Teleport to="body">
+        <div v-if="poolOpen" class="drawer-backdrop" @click.self="poolOpen = false">
+          <div class="drawer">
+            <div class="drawer__handle-bar" @click="poolOpen = false" />
+            <SessionPool
+              :recipes="planStore.sessionPool"
+              :slot-states="planStore.slotStates"
+              :history-items="planStore.poolHistory"
+              @assign="handleAssign"
+              @assign-from-history="handleAssignFromHistory"
+            />
+          </div>
+        </div>
+      </Teleport>
     </div>
   </div>
 </template>

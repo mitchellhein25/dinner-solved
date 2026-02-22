@@ -6,28 +6,36 @@ from fastapi import APIRouter, Depends, HTTPException
 from application.use_cases.confirm_plan import ConfirmPlanUseCase
 from application.use_cases.refine_recipes import RefineRecipesUseCase
 from application.use_cases.suggest_recipes import RecipeSuggestion, SuggestRecipesUseCase
-from api.converters import schema_to_recipe, schema_to_slot, slot_options_to_schema
+from api.converters import recipe_to_list_item, schema_to_recipe, schema_to_slot, slot_options_to_schema
 from api.dependencies import (
     HouseholdIdDep,
     RateLimiterDep,
     get_confirm_plan,
+    get_plan_repo,
+    get_recipe_repo,
     get_refine_recipes,
     get_suggest_recipes,
 )
 from api.schemas.plan import (
     ConfirmRequest,
+    ConfirmedAssignmentSchema,
+    ConfirmedPlanSchema,
     RefineRequest,
     RegenerateSlotRequest,
     SlotOptionsResponse,
     SuggestRequest,
     WeeklyPlanSchema,
 )
+from infrastructure.db.postgres.meal_plan_repo import PostgresWeeklyPlanRepository
+from infrastructure.db.postgres.recipe_repo import PostgresRecipeRepository
 
 router = APIRouter()
 
 SuggestDep = Annotated[SuggestRecipesUseCase, Depends(get_suggest_recipes)]
 RefineDep = Annotated[RefineRecipesUseCase, Depends(get_refine_recipes)]
 ConfirmDep = Annotated[ConfirmPlanUseCase, Depends(get_confirm_plan)]
+PlanRepoDep = Annotated[PostgresWeeklyPlanRepository, Depends(get_plan_repo)]
+RecipeRepoDep = Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)]
 
 
 def _rate_limit_error(remaining: float, resets_at: datetime | None) -> HTTPException:
@@ -42,6 +50,25 @@ def _rate_limit_error(remaining: float, resets_at: datetime | None) -> HTTPExcep
             "budget_remaining": remaining,
         },
     )
+
+
+@router.get("/{week_start_date}", response_model=ConfirmedPlanSchema)
+async def get_confirmed_plan(
+    week_start_date: str,
+    plan_repo: PlanRepoDep,
+    recipe_repo: RecipeRepoDep,
+):
+    plan = await plan_repo.get_plan(week_start_date)
+    if plan is None:
+        return ConfirmedPlanSchema(week_start_date=week_start_date, assignments=[])
+    assignments = []
+    for a in plan.assignments:
+        recipe = await recipe_repo.get_recipe(a.recipe_id)
+        if recipe:
+            assignments.append(
+                ConfirmedAssignmentSchema(slot_id=a.slot_id, recipe=recipe_to_list_item(recipe))
+            )
+    return ConfirmedPlanSchema(week_start_date=week_start_date, assignments=assignments)
 
 
 @router.post("/suggest", response_model=SlotOptionsResponse)

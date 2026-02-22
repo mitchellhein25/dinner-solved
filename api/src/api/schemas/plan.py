@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from .recipe import RecipeSchema
+from .recipe import RecipeListItemSchema, RecipeSchema
 
 
 class MealSlotSchema(BaseModel):
@@ -41,6 +41,16 @@ class WeeklyPlanSchema(BaseModel):
     id: UUID
     week_start_date: str
     assignments: list[dict]  # {slot_id, recipe_id}
+
+
+class ConfirmedAssignmentSchema(BaseModel):
+    slot_id: UUID
+    recipe: RecipeListItemSchema
+
+
+class ConfirmedPlanSchema(BaseModel):
+    week_start_date: str
+    assignments: list[ConfirmedAssignmentSchema]
 
 
 # ---------------------------------------------------------------------------
