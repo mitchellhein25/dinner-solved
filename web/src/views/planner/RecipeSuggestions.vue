@@ -107,7 +107,7 @@ async function confirm() {
       <div style="width: 72px"></div>
     </nav>
 
-    <div class="page__body container">
+    <div class="page__body planner-body">
       <!-- Error banner (shown in both states) -->
         <div v-if="planStore.error" class="error-banner">
           {{ planStore.error }}
@@ -188,18 +188,9 @@ async function confirm() {
             </div>
           </div>
 
-          <!-- Desktop layout: 30/70 split -->
+          <!-- Desktop layout: slots left, pool right -->
           <div class="layout">
-            <!-- Left panel: session pool (desktop only) -->
-            <aside class="layout__pool">
-              <SessionPool
-                :recipes="planStore.sessionPool"
-                :slot-states="planStore.slotStates"
-                @assign="handleAssign"
-              />
-            </aside>
-
-            <!-- Right panel: slot list + controls -->
+            <!-- Left panel: slot list + controls -->
             <main class="layout__main">
               <!-- Top controls -->
               <div class="top-controls">
@@ -288,6 +279,15 @@ async function confirm() {
                 Confirm Plan & See Grocery List →
               </button>
             </main>
+
+            <!-- Right panel: session pool (desktop only) -->
+            <aside class="layout__pool">
+              <SessionPool
+                :recipes="planStore.sessionPool"
+                :slot-states="planStore.slotStates"
+                @assign="handleAssign"
+              />
+            </aside>
           </div>
 
           <!-- Mobile bottom drawer for session pool -->
@@ -309,6 +309,12 @@ async function confirm() {
 </template>
 
 <style scoped>
+/* ─── Wide container for this page ─── */
+.planner-body {
+  width: 95%;
+  margin: 0 auto;
+}
+
 /* ─── Error banner ─── */
 .error-banner {
   background: color-mix(in srgb, red 10%, var(--card-bg));
@@ -387,11 +393,11 @@ async function confirm() {
   gap: 1.5rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 960px) {
   .layout {
     display: grid;
-    grid-template-columns: 28% 1fr;
-    gap: 1.5rem;
+    grid-template-columns: 1fr 30%;
+    gap: 2rem;
     align-items: start;
   }
 }
@@ -400,13 +406,15 @@ async function confirm() {
   display: none;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 960px) {
   .layout__pool {
     display: block;
     position: sticky;
     top: 1rem;
     max-height: calc(100vh - 4rem);
     overflow-y: auto;
+    overflow-x: hidden;
+    min-width: 0;
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -426,7 +434,7 @@ async function confirm() {
   display: inline-flex;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 960px) {
   .pool-toggle {
     display: none;
   }
@@ -445,7 +453,7 @@ async function confirm() {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: clip;
 }
 
 .slot-block--locked {
@@ -557,6 +565,10 @@ async function confirm() {
 /* ─── Confirm ─── */
 .confirm-btn {
   margin-top: 0.5rem;
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
 }
 
 /* ─── Mobile drawer ─── */

@@ -120,22 +120,22 @@ function isChosen(recipe: Recipe): boolean {
 
 .session-pool__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  grid-template-columns: 1fr;
+  gap: 0.375rem;
 }
 
 .pool-card {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.625rem;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   min-height: 2.5rem; /* comfortable tap target on mobile */
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 0.75);
   cursor: pointer;
   text-align: left;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   transition: border-color 0.15s;
   width: 100%;
 }
