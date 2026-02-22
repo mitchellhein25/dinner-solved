@@ -1,28 +1,40 @@
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from api.converters import recipe_to_detail, recipe_to_list_item
+from api.converters import recipe_input_to_ingredients, recipe_to_detail, recipe_to_list_item
 from api.dependencies import (
     HouseholdIdDep,
+    get_create_recipe,
     get_delete_recipe,
+    get_full_update_recipe,
     get_generate_instructions,
     get_get_recipe,
+    get_import_recipe,
     get_list_recipes,
     get_toggle_favorite,
     get_update_recipe,
 )
 from infrastructure.export.pdf_adapter import build_recipe_pdf
-from api.schemas.recipe import RecipeDetailSchema, RecipeListItemSchema
+from api.schemas.recipe import (
+    ImportRecipeRequest,
+    RecipeDetailSchema,
+    RecipeInputSchema,
+    RecipeListItemSchema,
+)
+from application.use_cases.create_recipe import CreateRecipeUseCase
 from application.use_cases.delete_recipe import DeleteRecipeUseCase
+from application.use_cases.full_update_recipe import FullUpdateRecipeUseCase
 from application.use_cases.generate_instructions import GenerateInstructionsUseCase
 from application.use_cases.get_recipe import GetRecipeUseCase
+from application.use_cases.import_recipe import ImportRecipeUseCase
 from application.use_cases.list_recipes import ListRecipesUseCase
 from application.use_cases.toggle_favorite import ToggleFavoriteUseCase
 from application.use_cases.update_recipe import UpdateRecipeUseCase
+from domain.entities.recipe import Recipe
 
 router = APIRouter()
 
@@ -32,12 +44,19 @@ ToggleFavoriteDep = Annotated[ToggleFavoriteUseCase, Depends(get_toggle_favorite
 DeleteRecipeDep = Annotated[DeleteRecipeUseCase, Depends(get_delete_recipe)]
 UpdateRecipeDep = Annotated[UpdateRecipeUseCase, Depends(get_update_recipe)]
 GenerateInstructionsDep = Annotated[GenerateInstructionsUseCase, Depends(get_generate_instructions)]
+ImportRecipeDep = Annotated[ImportRecipeUseCase, Depends(get_import_recipe)]
+CreateRecipeDep = Annotated[CreateRecipeUseCase, Depends(get_create_recipe)]
+FullUpdateRecipeDep = Annotated[FullUpdateRecipeUseCase, Depends(get_full_update_recipe)]
 
 
 class UpdateRecipeRequest(BaseModel):
     name: str
     emoji: str
 
+
+# ---------------------------------------------------------------------------
+# Collection routes (no path params) — must be registered BEFORE /{recipe_id}
+# ---------------------------------------------------------------------------
 
 @router.get("/", response_model=list[RecipeListItemSchema])
 async def list_recipes(
@@ -49,6 +68,48 @@ async def list_recipes(
     recipes = await use_case.execute(sort=sort, favorites_only=favorites_only)
     return [recipe_to_list_item(r) for r in recipes]
 
+
+@router.post("/import", response_model=RecipeDetailSchema, status_code=200)
+async def import_recipe_from_url(
+    body: ImportRecipeRequest,
+    use_case: ImportRecipeDep,
+    household_id: HouseholdIdDep,
+):
+    """Parse a recipe from a URL via AI. Returns a draft — not yet saved."""
+    try:
+        recipe = await use_case.execute(body.url)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return recipe_to_detail(recipe)
+
+
+@router.post("/", response_model=RecipeDetailSchema, status_code=201)
+async def create_recipe(
+    body: RecipeInputSchema,
+    use_case: CreateRecipeDep,
+    household_id: HouseholdIdDep,
+):
+    """Create a new recipe (manual entry or confirmed URL import)."""
+    new_recipe = Recipe(
+        id=uuid4(),
+        name=body.name,
+        emoji=body.emoji,
+        prep_time=body.prep_time,
+        key_ingredients=body.key_ingredients,
+        ingredients=recipe_input_to_ingredients(body.ingredients),
+        source_url=body.source_url,
+        cooking_instructions=body.cooking_instructions,
+    )
+    try:
+        saved = await use_case.execute(new_recipe)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return recipe_to_detail(saved)
+
+
+# ---------------------------------------------------------------------------
+# Item routes (with /{recipe_id})
+# ---------------------------------------------------------------------------
 
 @router.get("/{recipe_id}", response_model=RecipeDetailSchema)
 async def get_recipe(
@@ -95,6 +156,32 @@ async def update_recipe(
 ):
     try:
         recipe = await use_case.execute(recipe_id, name=body.name, emoji=body.emoji)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if recipe is None:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return recipe_to_detail(recipe)
+
+
+@router.put("/{recipe_id}", response_model=RecipeDetailSchema)
+async def full_update_recipe(
+    recipe_id: UUID,
+    body: RecipeInputSchema,
+    use_case: FullUpdateRecipeDep,
+    household_id: HouseholdIdDep,
+):
+    """Update all editable fields of a recipe, replacing its ingredient list."""
+    try:
+        recipe = await use_case.execute(
+            recipe_id=recipe_id,
+            name=body.name,
+            emoji=body.emoji,
+            prep_time=body.prep_time,
+            key_ingredients=body.key_ingredients,
+            ingredients=recipe_input_to_ingredients(body.ingredients),
+            source_url=body.source_url,
+            cooking_instructions=body.cooking_instructions,
+        )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     if recipe is None:

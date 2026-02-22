@@ -49,3 +49,12 @@ class AIPort(ABC):
         Called lazily on first detail view; result is cached in the DB.
         """
         ...
+
+    @abstractmethod
+    async def parse_recipe_from_url(self, url: str) -> Recipe:
+        """
+        Fetch a webpage and extract a recipe from it.
+        Returns a Recipe domain object (without an id/household — caller assigns those).
+        Raises ValueError if no recipe is found on the page.
+        """
+        ...

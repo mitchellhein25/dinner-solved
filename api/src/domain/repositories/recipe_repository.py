@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 from uuid import UUID
 
-from ..entities.recipe import Recipe
+from ..entities.recipe import Ingredient, Recipe
 
 
 class RecipeRepository(ABC):
@@ -54,5 +54,32 @@ class RecipeRepository(ABC):
     async def update_recipe(self, recipe_id: UUID, name: str, emoji: str) -> Optional[Recipe]:
         """Update a recipe's name and emoji. Returns updated recipe, None if not found.
         Raises ValueError if the new name already exists on another recipe in this household.
+        """
+        ...
+
+    @abstractmethod
+    async def create_recipe(self, recipe: Recipe) -> Recipe:
+        """
+        Insert a brand-new user-added recipe (times_used=0, last_used_at=None).
+        Raises ValueError if a recipe with that name already exists in this household.
+        """
+        ...
+
+    @abstractmethod
+    async def full_update_recipe(
+        self,
+        recipe_id: UUID,
+        name: str,
+        emoji: str,
+        prep_time: int,
+        key_ingredients: List[str],
+        ingredients: List[Ingredient],
+        source_url: Optional[str],
+        cooking_instructions: Optional[List[str]],
+    ) -> Optional[Recipe]:
+        """
+        Update all editable fields of a recipe, replacing its ingredient list.
+        Returns updated recipe, None if not found.
+        Raises ValueError if the new name already exists on another recipe.
         """
         ...

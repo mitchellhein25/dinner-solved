@@ -35,7 +35,7 @@ watch([() => recipesStore.sort, () => recipesStore.favoritesOnly], () => {
     <nav class="page__nav">
       <router-link class="btn btn--ghost btn--sm" to="/">← Home</router-link>
       <span class="page__nav-brand">My Recipes</span>
-      <router-link class="btn btn--ghost btn--sm" to="/settings">Settings</router-link>
+      <router-link class="btn btn--primary btn--sm" to="/recipes/add">+ Add</router-link>
     </nav>
 
     <div class="page__body container">
@@ -73,8 +73,11 @@ watch([() => recipesStore.sort, () => recipesStore.favoritesOnly], () => {
       <div v-else-if="filteredRecipes.length === 0" class="empty-state">
         <p>{{ recipesStore.recipes.length === 0 ? 'No recipes yet.' : 'No matches.' }}</p>
         <p v-if="recipesStore.recipes.length === 0" class="empty-state__hint">
-          Confirm a meal plan to start building your history.
+          Confirm a meal plan to add recipes, or add your own.
         </p>
+        <router-link v-if="recipesStore.recipes.length === 0" class="btn btn--ghost btn--sm" to="/recipes/add">
+          + Add a Recipe
+        </router-link>
       </div>
 
       <div v-else class="recipe-grid">

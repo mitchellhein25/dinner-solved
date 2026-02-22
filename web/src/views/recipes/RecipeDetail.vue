@@ -238,6 +238,9 @@ async function deleteRecipe() {
 
         <!-- Actions row -->
         <div class="actions-row">
+          <router-link class="btn btn--ghost btn--sm" :to="`/recipes/${recipe.id}/edit`">
+            ✏️ Edit
+          </router-link>
           <button
             class="btn btn--ghost btn--sm"
             :disabled="downloadingPdf"
