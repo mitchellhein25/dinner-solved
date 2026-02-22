@@ -39,3 +39,8 @@ class RecipeRepository(ABC):
     async def toggle_favorite(self, recipe_id: UUID) -> Optional[Recipe]:
         """Toggle is_favorite. Returns the updated recipe, or None if not found."""
         ...
+
+    @abstractmethod
+    async def get_recent_recipe_names(self, days: int = 14) -> List[str]:
+        """Return names of recipes confirmed within the last `days` days, newest first."""
+        ...

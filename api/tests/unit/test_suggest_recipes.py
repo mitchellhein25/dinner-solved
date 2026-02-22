@@ -12,6 +12,7 @@ from tests.unit.fakes import (
     InMemoryHouseholdRepository,
     InMemoryMealPlanTemplateRepository,
     InMemoryPreferenceRepository,
+    InMemoryRecipeRepository,
 )
 
 
@@ -61,12 +62,14 @@ def build_use_case(
     members=None,
     preferences=None,
     recipes_to_return=None,
+    recipe_repo=None,
 ) -> SuggestRecipesUseCase:
     return SuggestRecipesUseCase(
         ai_adapter=FakeAIPort(recipes_to_return=recipes_to_return or []),
         template_repo=InMemoryMealPlanTemplateRepository(template=template),
         household_repo=InMemoryHouseholdRepository(members=members or []),
         preference_repo=InMemoryPreferenceRepository(preferences=preferences),
+        recipe_repo=recipe_repo or InMemoryRecipeRepository(),
     )
 
 
@@ -133,6 +136,7 @@ class TestSuggestRecipes:
             template_repo=InMemoryMealPlanTemplateRepository(template=template),
             household_repo=InMemoryHouseholdRepository(),
             preference_repo=InMemoryPreferenceRepository(preferences=prefs),
+            recipe_repo=InMemoryRecipeRepository(),
         )
 
         await use_case.execute()
@@ -162,6 +166,7 @@ class TestSuggestRecipes:
             template_repo=InMemoryMealPlanTemplateRepository(template=template),
             household_repo=InMemoryHouseholdRepository(),
             preference_repo=InMemoryPreferenceRepository(),
+            recipe_repo=InMemoryRecipeRepository(),
         )
 
         await use_case.execute(week_context="feeling like something light")
@@ -177,6 +182,7 @@ class TestSuggestRecipes:
             template_repo=InMemoryMealPlanTemplateRepository(template=template),
             household_repo=InMemoryHouseholdRepository(members=members),
             preference_repo=InMemoryPreferenceRepository(),
+            recipe_repo=InMemoryRecipeRepository(),
         )
 
         await use_case.execute()
@@ -193,6 +199,7 @@ class TestSuggestRecipes:
             template_repo=InMemoryMealPlanTemplateRepository(template=template),
             household_repo=InMemoryHouseholdRepository(),
             preference_repo=InMemoryPreferenceRepository(),
+            recipe_repo=InMemoryRecipeRepository(),
         )
 
         result = await use_case.execute_for_slot(
@@ -221,6 +228,7 @@ class TestSuggestRecipes:
             template_repo=InMemoryMealPlanTemplateRepository(template=template),
             household_repo=InMemoryHouseholdRepository(),
             preference_repo=InMemoryPreferenceRepository(),
+            recipe_repo=InMemoryRecipeRepository(),
         )
         existing = {str(template.slots[1].id): make_recipe("Pasta")}
 
@@ -232,3 +240,35 @@ class TestSuggestRecipes:
         req = ai.last_suggestion_request
         assert req.week_context is not None
         assert "Pasta" in req.week_context
+
+    async def test_recent_recipe_names_passed_to_ai(self):
+        from datetime import datetime, timezone
+
+        template = make_template(1)
+        ai = FakeAIPort(recipes_to_return=[make_recipe()])
+
+        # Pre-seed the recipe repo with a recently used recipe
+        recent_recipe = Recipe(
+            id=uuid.uuid4(),
+            name="Old Favourite",
+            emoji="🍲",
+            prep_time=20,
+            ingredients=[],
+            key_ingredients=[],
+            times_used=3,
+            last_used_at=datetime.now(timezone.utc),
+        )
+        repo = InMemoryRecipeRepository()
+        repo._recipes[recent_recipe.id] = recent_recipe
+
+        use_case = SuggestRecipesUseCase(
+            ai_adapter=ai,
+            template_repo=InMemoryMealPlanTemplateRepository(template=template),
+            household_repo=InMemoryHouseholdRepository(),
+            preference_repo=InMemoryPreferenceRepository(),
+            recipe_repo=repo,
+        )
+
+        await use_case.execute()
+
+        assert "Old Favourite" in ai.last_suggestion_request.recent_recipe_names

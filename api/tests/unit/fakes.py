@@ -3,7 +3,7 @@ In-memory implementations of all domain repository and port interfaces.
 Used exclusively in unit tests — no database or network required.
 """
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from uuid import UUID
 
@@ -93,6 +93,13 @@ class InMemoryRecipeRepository(RecipeRepository):
         r = self._recipes.get(recipe_id)
         if r is not None:
             self._recipes[recipe_id] = replace(r, cooking_instructions=instructions)
+
+    async def get_recent_recipe_names(self, days: int = 14) -> List[str]:
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        return [
+            r.name for r in self._recipes.values()
+            if r.last_used_at is not None and r.last_used_at >= since
+        ]
 
     async def toggle_favorite(self, recipe_id: UUID) -> Optional[Recipe]:
         r = self._recipes.get(recipe_id)

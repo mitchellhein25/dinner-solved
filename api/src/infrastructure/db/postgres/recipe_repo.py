@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID, uuid4
 
@@ -104,6 +104,19 @@ class PostgresRecipeRepository(RecipeRepository):
     async def get_recipe(self, recipe_id: UUID) -> Optional[Recipe]:
         row = await self._find_row_by_id(recipe_id)
         return self._to_entity(row) if row else None
+
+    async def get_recent_recipe_names(self, days: int = 14) -> List[str]:
+        # Use naive UTC to match the TIMESTAMP WITHOUT TIME ZONE column type
+        since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+        result = await self._session.execute(
+            select(RecipeRow.name)
+            .where(
+                RecipeRow.household_id == self._household_id,
+                RecipeRow.last_used_at >= since,
+            )
+            .order_by(RecipeRow.last_used_at.desc())
+        )
+        return list(result.scalars().all())
 
     async def toggle_favorite(self, recipe_id: UUID) -> Optional[Recipe]:
         row = await self._find_row_by_id(recipe_id)

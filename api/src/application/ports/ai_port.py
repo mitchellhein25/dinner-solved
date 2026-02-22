@@ -15,6 +15,7 @@ class SuggestionRequest:
     liked_ingredients: List[str]
     cuisine_preferences: List[str]
     week_context: Optional[str] = None
+    recent_recipe_names: List[str] = field(default_factory=list)
 
 
 @dataclass

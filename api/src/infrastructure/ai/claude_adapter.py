@@ -114,6 +114,9 @@ class ClaudeAdapter(AIPort):
             lines.append(f"- Preferred cuisines: {request.cuisine_preferences}")
         if request.week_context:
             lines.append(f"- This week: {request.week_context}")
+        if request.recent_recipe_names:
+            names = ", ".join(request.recent_recipe_names)
+            lines.append(f"- Used in the last 2 weeks (aim for variety): {names}")
         lines.append("")
         lines.append(
             f"Return a JSON array of arrays with exactly {len(request.slots)} inner arrays, "

@@ -174,12 +174,14 @@ def get_suggest_recipes(
     template_repo: Annotated[PostgresMealPlanTemplateRepository, Depends(get_template_repo)],
     household_repo: Annotated[PostgresHouseholdRepository, Depends(get_household_repo)],
     preference_repo: Annotated[PostgresPreferenceRepository, Depends(get_preference_repo)],
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
 ) -> SuggestRecipesUseCase:
     return SuggestRecipesUseCase(
         ai_adapter=get_ai_adapter(),
         template_repo=template_repo,
         household_repo=household_repo,
         preference_repo=preference_repo,
+        recipe_repo=recipe_repo,
     )
 
 

@@ -6,6 +6,7 @@ from domain.entities.recipe import Recipe
 from domain.repositories.household_repository import HouseholdRepository
 from domain.repositories.meal_plan_repository import MealPlanTemplateRepository
 from domain.repositories.preference_repository import PreferenceRepository
+from domain.repositories.recipe_repository import RecipeRepository
 from application.ports.ai_port import AIPort, SuggestionRequest
 
 
@@ -29,11 +30,13 @@ class SuggestRecipesUseCase:
         template_repo: MealPlanTemplateRepository,
         household_repo: HouseholdRepository,
         preference_repo: PreferenceRepository,
+        recipe_repo: RecipeRepository,
     ):
         self._ai = ai_adapter
         self._template_repo = template_repo
         self._household_repo = household_repo
         self._preference_repo = preference_repo
+        self._recipe_repo = recipe_repo
 
     async def execute(self, week_context: Optional[str] = None) -> List[SlotOptions]:
         template = await self._template_repo.get_template()
@@ -42,6 +45,7 @@ class SuggestRecipesUseCase:
 
         members = await self._household_repo.get_members()
         preferences = await self._preference_repo.get_preferences()
+        recent_names = await self._recipe_repo.get_recent_recipe_names(days=14)
 
         request = SuggestionRequest(
             slots=template.slots,
@@ -50,6 +54,7 @@ class SuggestRecipesUseCase:
             liked_ingredients=preferences.liked_ingredients if preferences else [],
             cuisine_preferences=preferences.cuisine_preferences if preferences else [],
             week_context=week_context,
+            recent_recipe_names=recent_names,
         )
 
         options_lists = await self._ai.suggest_recipes(request)
@@ -76,6 +81,7 @@ class SuggestRecipesUseCase:
 
         members = await self._household_repo.get_members()
         preferences = await self._preference_repo.get_preferences()
+        recent_names = await self._recipe_repo.get_recent_recipe_names(days=14)
 
         # Incorporate existing chosen recipes as context to avoid duplication
         context_parts: List[str] = []
@@ -94,6 +100,7 @@ class SuggestRecipesUseCase:
             liked_ingredients=preferences.liked_ingredients if preferences else [],
             cuisine_preferences=preferences.cuisine_preferences if preferences else [],
             week_context="; ".join(context_parts) if context_parts else None,
+            recent_recipe_names=recent_names,
         )
 
         options_lists = await self._ai.suggest_recipes(request)
