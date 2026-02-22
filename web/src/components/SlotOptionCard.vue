@@ -32,28 +32,28 @@ const emit = defineEmits<{
 .slot-option-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.75rem 0.5rem;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.875rem 0.75rem 0.75rem;
   background: var(--card-bg);
-  border: 2px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
-  text-align: center;
-  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   width: 100%;
-  min-height: 7rem;
+  min-height: 7.5rem;
 }
 
 .slot-option-card:hover:not(.slot-option-card--disabled) {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .slot-option-card--selected {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--card-bg));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+  background: var(--accent-light);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .slot-option-card--disabled {
@@ -62,16 +62,16 @@ const emit = defineEmits<{
 }
 
 .slot-option-card__emoji {
-  font-size: 1.75rem;
+  font-size: 2rem;
   line-height: 1;
+  margin-bottom: 0.3rem;
 }
 
 .slot-option-card__name {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--ink);
-  line-height: 1.2;
-  /* Clamp to 2 lines so long names don't explode the card height */
+  line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -82,16 +82,19 @@ const emit = defineEmits<{
 .slot-option-card__ingredients {
   font-size: 0.6875rem;
   color: var(--ink-light);
-  line-height: 1.3;
-  /* Clamp ingredients to 1 line */
-  white-space: nowrap;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
   width: 100%;
+  margin-top: 0.1rem;
 }
 
 .slot-option-card__meta {
   font-size: 0.6875rem;
   color: var(--ink-light);
+  margin-top: auto;
+  padding-top: 0.25rem;
 }
 </style>

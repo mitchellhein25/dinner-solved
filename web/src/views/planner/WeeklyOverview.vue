@@ -76,8 +76,8 @@ async function downloadPlanPdf() {
 
       <template v-else-if="planStore.template">
         <div class="week-header">
-          <h1 class="week-header__title">Your Week</h1>
-          <p class="week-header__range">{{ formatWeekRange(planStore.weekStartDate) }}</p>
+          <p class="week-header__eyebrow">Your week</p>
+          <h1 class="week-header__title">{{ formatWeekRange(planStore.weekStartDate) }}</h1>
         </div>
 
         <div class="slot-list">
@@ -101,7 +101,7 @@ async function downloadPlanPdf() {
               <span class="slot-item__recipe-name">{{ confirmedRecipe(slot.id)!.name }}</span>
             </div>
             <div v-else class="slot-item__recipe slot-item__recipe--empty">
-              No recipe planned yet
+              Not yet planned
             </div>
           </div>
         </div>
@@ -134,9 +134,25 @@ async function downloadPlanPdf() {
 
 <style scoped>
 .center-loading { display: flex; justify-content: center; padding: 3rem 0; }
-.week-header { margin-bottom: 1.5rem; }
-.week-header__title { font-family: var(--font-display); font-size: 2rem; font-weight: 300; }
-.week-header__range { color: var(--ink-light); font-size: 0.9375rem; }
+
+.week-header { margin-bottom: 1.75rem; }
+.week-header__eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.25rem;
+}
+.week-header__title {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+  line-height: 1.15;
+}
+
 .slot-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem; }
 
 .slot-item {
@@ -151,31 +167,43 @@ async function downloadPlanPdf() {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
-  padding: 0.75rem 0.875rem 0.625rem;
+  padding: 0.75rem 1rem 0.625rem;
 }
 
 .slot-item__left { display: flex; flex-direction: column; gap: 0.25rem; }
-.slot-item__name { font-family: var(--font-display); font-size: 1.0625rem; }
+.slot-item__name {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-style: italic;
+  font-weight: 400;
+}
 .slot-item__days { font-size: 0.8125rem; color: var(--ink-light); }
 .slot-item__total { font-size: 0.75rem; color: var(--ink-light); white-space: nowrap; text-align: right; flex-shrink: 0; }
 
 .slot-item__recipe {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.875rem 0.625rem;
+  gap: 0.625rem;
+  padding: 0.625rem 1rem;
   border-top: 1px solid var(--border);
-  background: var(--cream);
+  background: var(--cream-dark);
 }
 
 .slot-item__recipe--empty {
   font-size: 0.8125rem;
   color: var(--ink-light);
   font-style: italic;
+  background: var(--cream);
 }
 
-.slot-item__recipe-emoji { font-size: 1.125rem; flex-shrink: 0; }
-.slot-item__recipe-name { font-size: 0.9375rem; font-weight: 500; }
+.slot-item__recipe-emoji { font-size: 1.375rem; flex-shrink: 0; }
+.slot-item__recipe-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+}
 
 .suggest-btn { margin-top: 0.5rem; }
 

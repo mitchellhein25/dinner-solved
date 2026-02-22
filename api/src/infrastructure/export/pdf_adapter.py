@@ -32,7 +32,7 @@ DAY_LABELS: dict[str, str] = {
     "sun": "Sun",
 }
 
-ACCENT = (79, 70, 229)   # indigo-600 (matches --accent CSS var)
+ACCENT = (196, 105, 58)  # terracotta (matches --accent CSS var #c4693a)
 INK = (30, 30, 30)
 INK_LIGHT = (110, 110, 110)
 WHITE = (255, 255, 255)

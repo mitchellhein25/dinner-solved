@@ -232,17 +232,18 @@ async function confirmPlan() {
               >
                 <div class="slot-block__header">
                   <div class="slot-block__header-left">
-                    <span class="chip">{{ MEAL_TYPE_LABELS[ss.slot.meal_type] }}</span>
-                    <span class="slot-block__days">
-                      {{ ss.slot.days.map((d) => DAY_LABELS[d]).join(', ') }}
-                    </span>
+                    <h3 class="slot-block__name">{{ ss.slot.name }}</h3>
+                    <div class="slot-block__header-meta">
+                      <span class="chip">{{ MEAL_TYPE_LABELS[ss.slot.meal_type] }}</span>
+                      <span class="slot-block__days">{{ ss.slot.days.map((d) => DAY_LABELS[d]).join(', ') }}</span>
+                    </div>
                   </div>
                 </div>
                 <div class="slot-block__blank-body">
                   <template v-if="ss.chosenIndex !== null">
                     {{ ss.options[ss.chosenIndex].emoji }} {{ ss.options[ss.chosenIndex].name }}
                   </template>
-                  <template v-else>No recipe chosen yet</template>
+                  <template v-else>— not yet chosen —</template>
                 </div>
               </div>
             </div>
@@ -278,9 +279,12 @@ async function confirmPlan() {
               >
                 <div class="slot-block__header">
                   <div class="slot-block__header-left">
-                    <span class="chip">{{ MEAL_TYPE_LABELS[ss.slot.meal_type] }}</span>
-                    <span class="slot-block__days">{{ slotLabel(ss) }}</span>
-                    <span class="slot-block__servings">{{ servingTotal(ss) }} srv</span>
+                    <h3 class="slot-block__name">{{ ss.slot.name }}</h3>
+                    <div class="slot-block__header-meta">
+                      <span class="chip">{{ MEAL_TYPE_LABELS[ss.slot.meal_type] }}</span>
+                      <span class="slot-block__days">{{ slotLabel(ss) }}</span>
+                      <span class="slot-block__servings">{{ servingTotal(ss) }} srv</span>
+                    </div>
                   </div>
                   <button
                     class="lock-btn"
@@ -427,11 +431,13 @@ async function confirmPlan() {
 }
 
 .slot-block--blank .slot-block__blank-body {
-  padding: 1.25rem 1rem;
+  padding: 1rem;
   font-size: 0.875rem;
   color: var(--ink-light);
   font-style: italic;
+  font-family: var(--font-display);
   text-align: center;
+  background: var(--card-bg);
 }
 
 .initial-prompt {
@@ -547,20 +553,36 @@ async function confirmPlan() {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.5rem 0.875rem;
-  background: var(--cream);
+  padding: 0.625rem 0.875rem;
+  background: var(--cream-dark);
   border-bottom: 1px solid var(--border);
 }
 
 .slot-block__header-left {
   display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.slot-block__name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.slot-block__header-meta {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
 }
 
 .slot-block__days {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--ink-light);
 }
 

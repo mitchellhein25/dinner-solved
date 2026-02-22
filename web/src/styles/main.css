@@ -10,16 +10,17 @@
   --accent-light: #f0e0d6;
   --green: #4a7c59;
   --green-light: #e4ede7;
-  --border: #e5e0d8;
-  --card-bg: #ffffff;
+  --border: #ddd8cf;
+  --card-bg: #fdfcfa;
+  --cream-dark: #ede8e0;
 
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'DM Sans', system-ui, sans-serif;
 
   --radius: 12px;
   --radius-sm: 8px;
-  --shadow: 0 1px 4px rgba(28, 25, 23, 0.08);
-  --shadow-md: 0 4px 16px rgba(28, 25, 23, 0.1);
+  --shadow: 0 1px 4px rgba(28, 25, 23, 0.10);
+  --shadow-md: 0 4px 16px rgba(28, 25, 23, 0.13);
 }
 
 /* -------------------------------------------------------------------------
@@ -209,9 +210,11 @@ a {
 
 .page__nav-brand {
   font-family: var(--font-display);
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-style: italic;
+  font-weight: 400;
   color: var(--ink);
+  letter-spacing: -0.01em;
 }
 
 .page__body {
