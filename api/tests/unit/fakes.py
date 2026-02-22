@@ -81,8 +81,9 @@ class InMemoryRecipeRepository(RecipeRepository):
         elif sort == "favorites_first":
             recipes.sort(key=lambda r: (not r.is_favorite, r.name))
         else:  # recent
+            _epoch = datetime.min.replace(tzinfo=timezone.utc)
             recipes.sort(
-                key=lambda r: r.last_used_at or datetime.min, reverse=True
+                key=lambda r: r.last_used_at or _epoch, reverse=True
             )
         return recipes
 
