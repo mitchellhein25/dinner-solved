@@ -27,12 +27,16 @@ class RefinementRequest:
     existing_assignments: Dict[str, Recipe]  # slot_id (str) -> Recipe
     user_message: str  # e.g. "swap the pasta for something lighter"
     week_context: Optional[str] = None
-    slot_id_to_refine: Optional[str] = None  # None means refine all
+    locked_slot_ids: List[str] = field(default_factory=list)
 
 
 class AIPort(ABC):
     @abstractmethod
-    async def suggest_recipes(self, request: SuggestionRequest) -> List[Recipe]: ...
+    async def suggest_recipes(self, request: SuggestionRequest) -> List[List[Recipe]]:
+        """Return 3 recipe options for each slot (outer list length == len(slots))."""
+        ...
 
     @abstractmethod
-    async def refine_recipes(self, request: RefinementRequest) -> List[Recipe]: ...
+    async def refine_recipes(self, request: RefinementRequest) -> List[List[Recipe]]:
+        """Return 3 options for each *unlocked* slot only."""
+        ...

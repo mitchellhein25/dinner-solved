@@ -2,7 +2,7 @@
 import LoadingSpinner from './LoadingSpinner.vue'
 import { ref } from 'vue'
 
-const props = defineProps<{ loading?: boolean }>()
+const props = defineProps<{ loading?: boolean; placeholder?: string }>()
 const emit = defineEmits<{ send: [message: string] }>()
 
 const message = ref('')
@@ -21,7 +21,7 @@ function submit() {
       v-model="message"
       class="input chat-input__field"
       type="text"
-      placeholder="Swap something? e.g. &quot;make Friday lighter&quot;"
+      :placeholder="placeholder ?? 'Swap something? e.g. &quot;make Friday lighter&quot;'"
       :disabled="loading"
       @keydown.enter.prevent="submit"
     />
