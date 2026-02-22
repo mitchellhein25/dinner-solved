@@ -205,7 +205,7 @@ async def suggest_slot(
 
 
 @router.post("/confirm", response_model=WeeklyPlanSchema)
-async def confirm_plan(body: ConfirmRequest, use_case: ConfirmDep):
+async def confirm_plan(body: ConfirmRequest, use_case: ConfirmDep, household_id: HouseholdIdDep):
     suggestions = [
         RecipeSuggestion(
             slot=schema_to_slot(s.slot),

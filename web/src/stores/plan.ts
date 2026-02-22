@@ -173,6 +173,7 @@ export const usePlanStore = defineStore('plan', () => {
     error.value = null
     rateLimitError.value = null
     clearProgress()
+    initFromTemplate()
   }
 
   // ──────────────────────────────────────────────────────────────────────────
