@@ -8,6 +8,30 @@ from anthropic import AsyncAnthropic
 from application.ports.ai_port import AIPort, RefinementRequest, SuggestionRequest
 from domain.entities.recipe import GroceryCategory, Ingredient, Recipe
 
+_VALID_CATEGORIES = {c.value for c in GroceryCategory}
+
+
+def _safe_category(value: str) -> GroceryCategory:
+    """Return the matching GroceryCategory, falling back to OTHER for unknown values."""
+    return GroceryCategory(value) if value in _VALID_CATEGORIES else GroceryCategory.OTHER
+
+
+def _extract_json_object(text: str) -> str:
+    """
+    Robustly extract the first top-level JSON object from a string.
+    Handles:
+    - Pure JSON: '{"key": "value"}'
+    - Code-fenced JSON: '```json\n{...}\n```'
+    - JSON with surrounding prose: 'Here is the recipe:\n{...}'
+    Raises ValueError if no JSON object is found.
+    """
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError(f"No JSON object found in AI response. Raw output: {text[:200]!r}")
+    return text[start : end + 1]
+
+
 # The model ID must match an available Claude model.
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
@@ -272,15 +296,11 @@ class ClaudeAdapter(AIPort):
                 messages.append({"role": "user", "content": tool_results})
                 continue
 
-            # stop_reason == "end_turn" — parse the JSON response
+            # stop_reason == "end_turn" — extract and parse the JSON response
             raw = next(
-                (b.text for b in response.content if hasattr(b, "text")), ""
+                (b.text for b in response.content if b.type == "text"), ""
             ).strip()
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-                raw = raw.strip()
+            raw = _extract_json_object(raw)
             data = json.loads(raw)
             if "error" in data:
                 raise ValueError(data["error"])
@@ -316,7 +336,7 @@ class ClaudeAdapter(AIPort):
                 name=ing["name"],
                 quantity=float(ing["quantity"]),
                 unit=ing["unit"],
-                category=GroceryCategory(ing["category"]),
+                category=_safe_category(ing.get("category", "other")),
             )
             for ing in data.get("ingredients", [])
         ]
