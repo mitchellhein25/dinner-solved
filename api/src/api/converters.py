@@ -17,7 +17,7 @@ from .schemas.plan import (
     RecipeOptionsSchema,
 )
 from .schemas.preferences import PreferencesSchema
-from .schemas.recipe import IngredientSchema, RecipeSchema
+from .schemas.recipe import IngredientSchema, RecipeDetailSchema, RecipeListItemSchema, RecipeSchema
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +49,35 @@ def recipe_to_schema(r: Recipe) -> RecipeSchema:
         ingredients=[ingredient_to_schema(i) for i in r.ingredients],
         key_ingredients=r.key_ingredients,
         is_favorite=r.is_favorite,
+        source_url=r.source_url,
+    )
+
+
+def recipe_to_list_item(r: Recipe) -> RecipeListItemSchema:
+    return RecipeListItemSchema(
+        id=r.id,
+        name=r.name,
+        emoji=r.emoji,
+        prep_time=r.prep_time,
+        key_ingredients=r.key_ingredients,
+        is_favorite=r.is_favorite,
+        times_used=r.times_used,
+        last_used_at=r.last_used_at,
+    )
+
+
+def recipe_to_detail(r: Recipe) -> RecipeDetailSchema:
+    return RecipeDetailSchema(
+        id=r.id,
+        name=r.name,
+        emoji=r.emoji,
+        prep_time=r.prep_time,
+        ingredients=[ingredient_to_schema(i) for i in r.ingredients],
+        key_ingredients=r.key_ingredients,
+        is_favorite=r.is_favorite,
+        times_used=r.times_used,
+        last_used_at=r.last_used_at,
+        cooking_instructions=r.cooking_instructions,
         source_url=r.source_url,
     )
 

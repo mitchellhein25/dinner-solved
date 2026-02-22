@@ -49,6 +49,37 @@ class ClaudeAdapter(AIPort):
         prompt = self._build_suggestion_prompt(request)
         return await self._call_and_parse(prompt, expected_slot_count=len(request.slots))
 
+    async def generate_instructions(self, recipe: Recipe) -> List[str]:
+        ingredients_text = "\n".join(
+            f"- {ing.quantity} {ing.unit} {ing.name}" for ing in recipe.ingredients
+        )
+        prompt = (
+            f"Recipe: {recipe.name}\n"
+            f"Prep time: {recipe.prep_time} minutes\n"
+            f"Ingredients (per serving):\n{ingredients_text}\n\n"
+            "Return step-by-step cooking instructions as a JSON array of strings. "
+            "Each string is one step (1-3 sentences). Aim for 6-10 steps total."
+        )
+        response = await self._client.messages.create(
+            model=self._model,
+            max_tokens=1024,
+            system=(
+                "You are a cooking assistant. Return cooking instructions as a JSON array of step strings. "
+                "Respond ONLY with the JSON array. No additional text."
+            ),
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        steps = json.loads(raw)
+        if not isinstance(steps, list):
+            raise ValueError("Expected JSON array from generate_instructions")
+        return [str(s) for s in steps]
+
     async def refine_recipes(self, request: RefinementRequest) -> List[List[Recipe]]:
         unlocked_slots = [
             s for s in request.slots if str(s.id) not in request.locked_slot_ids

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID, uuid4
 
@@ -15,82 +16,138 @@ class PostgresRecipeRepository(RecipeRepository):
         self._session = session
         self._household_id = household_id
 
-    async def save_recipe(self, recipe: Recipe) -> None:
-        # Upsert: delete existing then re-insert (simple and correct for this scale)
-        existing = await self._session.execute(
-            select(RecipeRow).where(
-                RecipeRow.id == recipe.id,
-                RecipeRow.household_id == self._household_id,
+    # ------------------------------------------------------------------
+    # Save / upsert
+    # ------------------------------------------------------------------
+
+    async def save_recipe(self, recipe: Recipe) -> Recipe:
+        """
+        Upsert by UUID first, then fall back to name match within household.
+        Returns the canonical Recipe (with the DB's authoritative id).
+        """
+        row = await self._find_row_by_id(recipe.id)
+        if row is None:
+            row = await self._find_row_by_name(recipe.name)
+
+        if row is not None:
+            # Update mutable fields; preserve canonical id and is_favorite
+            row.emoji = recipe.emoji
+            row.prep_time = recipe.prep_time
+            row.key_ingredients = recipe.key_ingredients
+            row.times_used = (row.times_used or 0) + 1
+            row.last_used_at = datetime.now(timezone.utc)
+            # Replace ingredients with latest from AI
+            for ing in list(row.ingredients):
+                await self._session.delete(ing)
+            await self._session.flush()
+            for ing in recipe.ingredients:
+                row.ingredients.append(self._ingredient_row(ing))
+            await self._session.flush()
+            return self._to_entity(row)
+        else:
+            row = RecipeRow(
+                id=recipe.id,
+                household_id=self._household_id,
+                name=recipe.name,
+                emoji=recipe.emoji,
+                prep_time=recipe.prep_time,
+                key_ingredients=recipe.key_ingredients,
+                is_favorite=recipe.is_favorite,
+                source_url=recipe.source_url,
+                times_used=1,
+                last_used_at=datetime.now(timezone.utc),
             )
-        )
-        existing_row = existing.scalar_one_or_none()
-        if existing_row:
-            await self._session.delete(existing_row)
+            for ing in recipe.ingredients:
+                row.ingredients.append(self._ingredient_row(ing))
+            self._session.add(row)
+            await self._session.flush()
+            return self._to_entity(row)
+
+    async def save_instructions(self, recipe_id: UUID, instructions: List[str]) -> None:
+        row = await self._find_row_by_id(recipe_id)
+        if row is not None:
+            row.cooking_instructions = instructions
             await self._session.flush()
 
-        row = RecipeRow(
-            id=recipe.id,
-            household_id=self._household_id,
-            name=recipe.name,
-            emoji=recipe.emoji,
-            prep_time=recipe.prep_time,
-            key_ingredients=recipe.key_ingredients,
-            is_favorite=recipe.is_favorite,
-            source_url=recipe.source_url,
-        )
-        for ing in recipe.ingredients:
-            row.ingredients.append(IngredientRow(
-                id=uuid4(),
-                name=ing.name,
-                quantity=ing.quantity,
-                unit=ing.unit,
-                category=ing.category.value,
-            ))
-        self._session.add(row)
-        await self._session.flush()
+    # ------------------------------------------------------------------
+    # Queries
+    # ------------------------------------------------------------------
 
-    async def get_recipes(self) -> List[Recipe]:
-        result = await self._session.execute(
+    async def get_recipes(
+        self,
+        sort: str = "recent",
+        favorites_only: bool = False,
+    ) -> List[Recipe]:
+        stmt = (
             select(RecipeRow)
             .where(RecipeRow.household_id == self._household_id)
             .options(selectinload(RecipeRow.ingredients))
         )
+        if favorites_only:
+            stmt = stmt.where(RecipeRow.is_favorite.is_(True))
+
+        if sort == "most_used":
+            stmt = stmt.order_by(RecipeRow.times_used.desc(), RecipeRow.name.asc())
+        elif sort == "alpha":
+            stmt = stmt.order_by(RecipeRow.name.asc())
+        elif sort == "favorites_first":
+            stmt = stmt.order_by(
+                RecipeRow.is_favorite.desc(),
+                RecipeRow.last_used_at.desc().nulls_last(),
+            )
+        else:  # "recent" (default)
+            stmt = stmt.order_by(RecipeRow.last_used_at.desc().nulls_last())
+
+        result = await self._session.execute(stmt)
         return [self._to_entity(row) for row in result.scalars().all()]
 
     async def get_recipe(self, recipe_id: UUID) -> Optional[Recipe]:
-        result = await self._session.execute(
-            select(RecipeRow)
-            .where(
-                RecipeRow.id == recipe_id,
-                RecipeRow.household_id == self._household_id,
-            )
-            .options(selectinload(RecipeRow.ingredients))
-        )
-        row = result.scalar_one_or_none()
+        row = await self._find_row_by_id(recipe_id)
         return self._to_entity(row) if row else None
 
-    async def get_favorites(self) -> List[Recipe]:
+    async def toggle_favorite(self, recipe_id: UUID) -> Optional[Recipe]:
+        row = await self._find_row_by_id(recipe_id)
+        if row is None:
+            return None
+        row.is_favorite = not row.is_favorite
+        await self._session.flush()
+        return self._to_entity(row)
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    async def _find_row_by_id(self, recipe_id: UUID) -> Optional[RecipeRow]:
         result = await self._session.execute(
             select(RecipeRow)
             .where(
-                RecipeRow.household_id == self._household_id,
-                RecipeRow.is_favorite == True,
-            )
-            .options(selectinload(RecipeRow.ingredients))
-        )
-        return [self._to_entity(row) for row in result.scalars().all()]
-
-    async def toggle_favorite(self, recipe_id: UUID) -> None:
-        result = await self._session.execute(
-            select(RecipeRow).where(
                 RecipeRow.id == recipe_id,
                 RecipeRow.household_id == self._household_id,
             )
+            .options(selectinload(RecipeRow.ingredients))
         )
-        row = result.scalar_one_or_none()
-        if row:
-            row.is_favorite = not row.is_favorite
-            await self._session.flush()
+        return result.scalar_one_or_none()
+
+    async def _find_row_by_name(self, name: str) -> Optional[RecipeRow]:
+        result = await self._session.execute(
+            select(RecipeRow)
+            .where(
+                RecipeRow.name == name,
+                RecipeRow.household_id == self._household_id,
+            )
+            .options(selectinload(RecipeRow.ingredients))
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def _ingredient_row(ing: Ingredient) -> IngredientRow:
+        return IngredientRow(
+            id=uuid4(),
+            name=ing.name,
+            quantity=ing.quantity,
+            unit=ing.unit,
+            category=ing.category.value,
+        )
 
     @staticmethod
     def _to_entity(row: RecipeRow) -> Recipe:
@@ -102,6 +159,9 @@ class PostgresRecipeRepository(RecipeRepository):
             key_ingredients=list(row.key_ingredients),
             is_favorite=row.is_favorite,
             source_url=row.source_url,
+            cooking_instructions=list(row.cooking_instructions) if row.cooking_instructions else None,
+            times_used=row.times_used or 0,
+            last_used_at=row.last_used_at,
             ingredients=[
                 Ingredient(
                     name=ing.name,

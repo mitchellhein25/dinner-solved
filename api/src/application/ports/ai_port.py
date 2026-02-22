@@ -40,3 +40,11 @@ class AIPort(ABC):
     async def refine_recipes(self, request: RefinementRequest) -> List[List[Recipe]]:
         """Return 3 options for each *unlocked* slot only."""
         ...
+
+    @abstractmethod
+    async def generate_instructions(self, recipe: Recipe) -> List[str]:
+        """
+        Generate step-by-step cooking instructions for the given recipe.
+        Called lazily on first detail view; result is cached in the DB.
+        """
+        ...

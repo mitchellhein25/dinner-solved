@@ -8,7 +8,7 @@ load_dotenv()
 
 from infrastructure.db.postgres.database import init_db  # noqa: E402 (must be after load_dotenv)
 
-from api.routers import auth, grocery, household, plan, preferences, template  # noqa: E402
+from api.routers import auth, grocery, household, plan, preferences, recipes, template  # noqa: E402
 
 app = FastAPI(title="Dinner Solved API", version="1.0.0")
 
@@ -26,6 +26,7 @@ app.include_router(template.router, prefix="/api/template", tags=["template"])
 app.include_router(plan.router, prefix="/api/plan", tags=["plan"])
 app.include_router(grocery.router, prefix="/api/grocery", tags=["grocery"])
 app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
+app.include_router(recipes.router, prefix="/api/recipes", tags=["recipes"])
 
 
 @app.on_event("startup")

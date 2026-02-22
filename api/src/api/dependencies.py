@@ -11,10 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.use_cases.build_grocery_list import BuildGroceryListUseCase
 from application.use_cases.confirm_plan import ConfirmPlanUseCase
+from application.use_cases.get_recipe import GetRecipeUseCase
+from application.use_cases.list_recipes import ListRecipesUseCase
 from application.use_cases.manage_household import ManageHouseholdUseCase
 from application.use_cases.manage_template import ManageTemplateUseCase
 from application.use_cases.refine_recipes import RefineRecipesUseCase
 from application.use_cases.suggest_recipes import SuggestRecipesUseCase
+from application.use_cases.toggle_favorite import ToggleFavoriteUseCase
 from api.rate_limiter import RateLimiter
 from domain.services.grocery_list_service import GroceryListService
 from domain.services.meal_plan_service import MealPlanService
@@ -198,6 +201,24 @@ def get_confirm_plan(
     recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
 ) -> ConfirmPlanUseCase:
     return ConfirmPlanUseCase(plan_repo=plan_repo, recipe_repo=recipe_repo)
+
+
+def get_list_recipes(
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
+) -> ListRecipesUseCase:
+    return ListRecipesUseCase(recipe_repo=recipe_repo)
+
+
+def get_get_recipe(
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
+) -> GetRecipeUseCase:
+    return GetRecipeUseCase(recipe_repo=recipe_repo, ai_port=get_ai_adapter())
+
+
+def get_toggle_favorite(
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
+) -> ToggleFavoriteUseCase:
+    return ToggleFavoriteUseCase(recipe_repo=recipe_repo)
 
 
 def get_build_grocery_list(
