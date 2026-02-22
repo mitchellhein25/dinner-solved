@@ -1,11 +1,13 @@
 import { groceryApi } from '@/api/grocery'
 import { planApi } from '@/api/plan'
 import type { SlotOptionsResponse } from '@/api/plan'
+import { recipesApi } from '@/api/recipes'
 import type {
   GenerationBudget,
   GroceryListItem,
   MealPlanTemplate,
   Recipe,
+  RecipeListItem,
   RecipeSuggestion,
   SlotState,
 } from '@/types'
@@ -17,6 +19,7 @@ export const usePlanStore = defineStore('plan', () => {
   const template = ref<MealPlanTemplate | null>(null)
   const slotStates = ref<SlotState[]>([])
   const sessionPool = ref<Recipe[]>([])
+  const poolHistory = ref<RecipeListItem[]>([])
   const budget = ref<GenerationBudget>({ remaining: 3, resetsAt: null })
   const groceryItems = ref<GroceryListItem[]>([])
   const weekStartDate = ref<string>(getWeekStart())
@@ -85,6 +88,14 @@ export const usePlanStore = defineStore('plan', () => {
       throw e
     } finally {
       loading.value = false
+    }
+  }
+
+  async function loadPoolHistory() {
+    try {
+      poolHistory.value = await recipesApi.getRecipes('recent', false)
+    } catch {
+      // Non-fatal — pool history is a convenience feature
     }
   }
 
@@ -289,6 +300,7 @@ export const usePlanStore = defineStore('plan', () => {
     template,
     slotStates,
     sessionPool,
+    poolHistory,
     budget,
     groceryItems,
     weekStartDate,
@@ -299,6 +311,7 @@ export const usePlanStore = defineStore('plan', () => {
     allSlotsChosen,
     fetchTemplate,
     saveTemplate,
+    loadPoolHistory,
     suggest,
     refine,
     regenerateSlot,

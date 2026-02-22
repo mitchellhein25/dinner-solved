@@ -1,78 +1,154 @@
 <script setup lang="ts">
-import type { Recipe, SlotState } from '@/types'
+import type { Recipe, RecipeListItem, SlotState } from '@/types'
 import { computed, ref } from 'vue'
 
 const props = defineProps<{
   recipes: Recipe[]
   slotStates: SlotState[]
+  historyItems?: RecipeListItem[]
 }>()
 
 const emit = defineEmits<{
   assign: [recipe: Recipe, slotId: string]
+  assignFromHistory: [item: RecipeListItem, slotId: string]
 }>()
 
-// Slot-picker popover state
-const popoverRecipe = ref<Recipe | null>(null)
-const popoverOpen = ref(false)
+// ── Search & filter ────────────────────────────────────────────────────────
 
-function openPopover(recipe: Recipe) {
-  popoverRecipe.value = recipe
-  popoverOpen.value = true
-}
+const search = ref('')
+const favoritesOnly = ref(false)
+
+const filteredPool = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  return props.recipes.filter((r) => !q || r.name.toLowerCase().includes(q))
+})
+
+const sessionNames = computed(() => new Set(props.recipes.map((r) => r.name.toLowerCase())))
+
+const filteredHistory = computed(() => {
+  if (!props.historyItems) return []
+  const q = search.value.trim().toLowerCase()
+  return props.historyItems.filter((r) => {
+    if (sessionNames.value.has(r.name.toLowerCase())) return false // already in session pool
+    if (favoritesOnly.value && !r.is_favorite) return false
+    if (q && !r.name.toLowerCase().includes(q)) return false
+    return true
+  })
+})
+
+// ── Popover ────────────────────────────────────────────────────────────────
+
+const popoverRecipe = ref<Recipe | null>(null)
+const popoverHistoryItem = ref<RecipeListItem | null>(null)
+const popoverOpen = ref(false)
 
 function closePopover() {
   popoverOpen.value = false
   popoverRecipe.value = null
+  popoverHistoryItem.value = null
 }
 
 function assign(slotId: string) {
   if (popoverRecipe.value) {
     emit('assign', popoverRecipe.value, slotId)
+  } else if (popoverHistoryItem.value) {
+    emit('assignFromHistory', popoverHistoryItem.value, slotId)
   }
   closePopover()
 }
 
-// Unlocked slots available for assignment
-const assignableSlots = computed(() =>
-  props.slotStates.filter((ss) => !ss.locked),
-)
+const assignableSlots = computed(() => props.slotStates.filter((ss) => !ss.locked))
 
-function handleRecipeClick(recipe: Recipe) {
+function handlePoolClick(recipe: Recipe) {
   if (assignableSlots.value.length === 0) return
   if (assignableSlots.value.length === 1) {
     emit('assign', recipe, assignableSlots.value[0].slot.id)
     return
   }
-  openPopover(recipe)
+  popoverRecipe.value = recipe
+  popoverHistoryItem.value = null
+  popoverOpen.value = true
 }
 
-function isChosen(recipe: Recipe): boolean {
+function handleHistoryClick(item: RecipeListItem) {
+  if (assignableSlots.value.length === 0) return
+  if (assignableSlots.value.length === 1) {
+    emit('assignFromHistory', item, assignableSlots.value[0].slot.id)
+    return
+  }
+  popoverHistoryItem.value = item
+  popoverRecipe.value = null
+  popoverOpen.value = true
+}
+
+function isChosen(name: string): boolean {
   return props.slotStates.some(
-    (ss) => ss.chosenIndex !== null && ss.options[ss.chosenIndex]?.name === recipe.name,
+    (ss) => ss.chosenIndex !== null && ss.options[ss.chosenIndex]?.name === name,
   )
 }
 </script>
 
 <template>
   <div class="session-pool">
-    <h3 class="session-pool__title">Seen this session</h3>
+    <!-- Search bar -->
+    <input
+      v-model="search"
+      class="input pool-search"
+      type="search"
+      placeholder="🔍 Search recipes…"
+    />
 
-    <div v-if="recipes.length === 0" class="session-pool__empty">
-      Recipes you've seen will appear here.
+    <!-- Seen this session -->
+    <div class="pool-section">
+      <h3 class="pool-section__title">Seen this session</h3>
+      <div v-if="filteredPool.length === 0" class="pool-empty">
+        {{ recipes.length === 0 ? 'Recipes seen this session will appear here.' : 'No matches.' }}
+      </div>
+      <div v-else class="pool-grid">
+        <button
+          v-for="recipe in filteredPool"
+          :key="recipe.id"
+          class="pool-card"
+          :class="{ 'pool-card--chosen': isChosen(recipe.name) }"
+          :title="`Click to assign: ${recipe.name}`"
+          @click="handlePoolClick(recipe)"
+        >
+          <span class="pool-card__emoji">{{ recipe.emoji }}</span>
+          <span class="pool-card__name">{{ recipe.name }}</span>
+        </button>
+      </div>
     </div>
 
-    <div v-else class="session-pool__grid">
-      <button
-        v-for="recipe in recipes"
-        :key="recipe.id"
-        class="pool-card"
-        :class="{ 'pool-card--chosen': isChosen(recipe) }"
-        :title="`Click to assign: ${recipe.name}`"
-        @click="handleRecipeClick(recipe)"
-      >
-        <span class="pool-card__emoji">{{ recipe.emoji }}</span>
-        <span class="pool-card__name">{{ recipe.name }}</span>
-      </button>
+    <!-- From your history -->
+    <div v-if="historyItems !== undefined" class="pool-section">
+      <div class="pool-section__header">
+        <h3 class="pool-section__title">From your history</h3>
+        <button
+          class="btn btn--sm fav-toggle"
+          :class="favoritesOnly ? 'fav-toggle--active' : ''"
+          :title="favoritesOnly ? 'Show all' : 'Show favorites only'"
+          @click="favoritesOnly = !favoritesOnly"
+        >
+          ♥
+        </button>
+      </div>
+      <div v-if="filteredHistory.length === 0" class="pool-empty">
+        {{ historyItems.length === 0 ? 'No past recipes yet.' : 'No matches.' }}
+      </div>
+      <div v-else class="pool-grid">
+        <button
+          v-for="item in filteredHistory"
+          :key="item.id"
+          class="pool-card"
+          :class="{ 'pool-card--chosen': isChosen(item.name), 'pool-card--favorite': item.is_favorite }"
+          :title="`Click to assign: ${item.name}`"
+          @click="handleHistoryClick(item)"
+        >
+          <span class="pool-card__emoji">{{ item.emoji }}</span>
+          <span class="pool-card__name">{{ item.name }}</span>
+          <span v-if="item.is_favorite" class="pool-card__fav">♥</span>
+        </button>
+      </div>
     </div>
 
     <!-- Slot-picker popover -->
@@ -101,35 +177,56 @@ function isChosen(recipe: Recipe): boolean {
 .session-pool {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
-.session-pool__title {
+/* Search */
+.pool-search {
   font-size: 0.8125rem;
+  padding: 0.4rem 0.625rem;
+}
+
+/* Section */
+.pool-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pool-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pool-section__title {
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--ink-light);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.session-pool__empty {
+.pool-empty {
   font-size: 0.8125rem;
   color: var(--ink-light);
-  padding: 0.5rem 0;
+  padding: 0.25rem 0;
 }
 
-.session-pool__grid {
+/* Grid */
+.pool-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.375rem;
+  gap: 0.3rem;
 }
 
+/* Card */
 .pool-card {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  min-height: 2.5rem; /* comfortable tap target on mobile */
+  padding: 0.45rem 0.625rem;
+  min-height: 2.25rem;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 0.75);
@@ -150,7 +247,7 @@ function isChosen(recipe: Recipe): boolean {
 }
 
 .pool-card__emoji {
-  font-size: 1.125rem;
+  font-size: 1rem;
   flex-shrink: 0;
 }
 
@@ -159,6 +256,38 @@ function isChosen(recipe: Recipe): boolean {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.pool-card__fav {
+  color: #e05c5c;
+  font-size: 0.6875rem;
+  flex-shrink: 0;
+}
+
+/* Favorites toggle */
+.fav-toggle {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--ink-light);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  line-height: 1;
+}
+
+.fav-toggle:hover {
+  border-color: #e05c5c;
+  color: #e05c5c;
+}
+
+.fav-toggle--active {
+  color: #e05c5c;
+  border-color: #e05c5c;
+  background: #fff5f5;
 }
 
 /* Popover */
@@ -192,7 +321,7 @@ function isChosen(recipe: Recipe): boolean {
 
 .pool-popover__slot {
   justify-content: flex-start;
-  min-height: 2.75rem; /* comfortable tap target */
+  min-height: 2.75rem;
 }
 
 .pool-popover__cancel {

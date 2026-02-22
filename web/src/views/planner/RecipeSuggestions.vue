@@ -3,9 +3,10 @@ import ChatInput from '@/components/ChatInput.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import SessionPool from '@/components/SessionPool.vue'
 import SlotOptionCard from '@/components/SlotOptionCard.vue'
+import { recipesApi } from '@/api/recipes'
 import { useHouseholdStore } from '@/stores/household'
 import { usePlanStore } from '@/stores/plan'
-import type { Recipe, SlotState } from '@/types'
+import type { Recipe, RecipeListItem, SlotState } from '@/types'
 import { DAY_LABELS, MEAL_TYPE_LABELS } from '@/types'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -41,6 +42,8 @@ onMounted(async () => {
     householdStore.fetchMembers(),
     // Ensure template is loaded so we can render blank slots in the initial state
     planStore.template ? Promise.resolve() : planStore.fetchTemplate(),
+    // Pre-seed the pool with past recipes (non-fatal if it fails)
+    planStore.loadPoolHistory(),
   ])
   updateCountdown()
   countdownTimer = setInterval(updateCountdown, 1000)
@@ -91,6 +94,24 @@ async function handleChat(message: string) {
 
 function handleAssign(recipe: Recipe, slotId: string) {
   planStore.assignFromPool(slotId, recipe)
+}
+
+async function handleAssignFromHistory(item: RecipeListItem, slotId: string) {
+  try {
+    const full = await recipesApi.getRecipe(item.id)
+    planStore.assignFromPool(slotId, full)
+  } catch {
+    // If fetch fails, fall back to assigning with available data (no ingredients)
+    planStore.assignFromPool(slotId, {
+      id: item.id,
+      name: item.name,
+      emoji: item.emoji,
+      prep_time: item.prep_time,
+      ingredients: [],
+      key_ingredients: item.key_ingredients,
+      is_favorite: item.is_favorite,
+    })
+  }
 }
 
 async function confirm() {
@@ -285,7 +306,9 @@ async function confirm() {
               <SessionPool
                 :recipes="planStore.sessionPool"
                 :slot-states="planStore.slotStates"
+                :history-items="planStore.poolHistory"
                 @assign="handleAssign"
+                @assign-from-history="handleAssignFromHistory"
               />
             </aside>
           </div>
@@ -298,7 +321,9 @@ async function confirm() {
                 <SessionPool
                   :recipes="planStore.sessionPool"
                   :slot-states="planStore.slotStates"
+                  :history-items="planStore.poolHistory"
                   @assign="handleAssign"
+                  @assign-from-history="handleAssignFromHistory"
                 />
               </div>
             </div>
@@ -379,6 +404,9 @@ async function confirm() {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .initial-prompt__hint {
