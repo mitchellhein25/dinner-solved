@@ -31,6 +31,7 @@ async function suggest() {
 <template>
   <div class="page">
     <nav class="page__nav">
+      <router-link class="btn btn--ghost btn--sm" to="/recipes">Recipes</router-link>
       <span class="page__nav-brand">Dinner Solved</span>
       <router-link class="btn btn--ghost btn--sm" to="/settings">Settings</router-link>
     </nav>

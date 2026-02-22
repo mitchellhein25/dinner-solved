@@ -82,6 +82,33 @@ export interface GenerationBudget {
   resetsAt: string | null // ISO timestamp, null if budget not yet started
 }
 
+/** Summary item returned by GET /api/recipes. */
+export interface RecipeListItem {
+  id: string
+  name: string
+  emoji: string
+  prep_time: number
+  key_ingredients: string[]
+  is_favorite: boolean
+  times_used: number
+  last_used_at: string | null
+}
+
+/** Full detail returned by GET /api/recipes/:id. */
+export interface RecipeDetail {
+  id: string
+  name: string
+  emoji: string
+  prep_time: number
+  ingredients: Ingredient[]
+  key_ingredients: string[]
+  is_favorite: boolean
+  cooking_instructions: string[] | null
+  times_used: number
+  last_used_at: string | null
+  source_url: string | null
+}
+
 export const DAY_LABELS: Record<string, string> = {
   mon: 'Mon',
   tue: 'Tue',

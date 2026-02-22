@@ -67,6 +67,16 @@ const router = createRouter({
       name: 'settings',
       component: () => import('@/views/settings/Settings.vue'),
     },
+    {
+      path: '/recipes',
+      name: 'recipes',
+      component: () => import('@/views/recipes/RecipeRepository.vue'),
+    },
+    {
+      path: '/recipes/:id',
+      name: 'recipe-detail',
+      component: () => import('@/views/recipes/RecipeDetail.vue'),
+    },
 
     // Fallback
     { path: '/:pathMatch(.*)*', redirect: '/' },
