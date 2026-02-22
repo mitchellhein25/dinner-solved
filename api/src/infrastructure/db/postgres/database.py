@@ -2,6 +2,8 @@
 Async SQLAlchemy engine and session factory.
 Import get_session in repositories; import engine in Alembic env.py.
 """
+from pathlib import Path
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Engine is created at startup via init_db(); repositories receive sessions via DI.
@@ -30,3 +32,17 @@ def get_session_factory() -> async_sessionmaker:
     if _session_factory is None:
         raise RuntimeError("Database not initialised. Call init_db() first.")
     return _session_factory
+
+
+def run_migrations() -> None:
+    """Run any pending Alembic migrations (upgrade head).
+
+    Safe to call on every startup — Alembic is a no-op when already up to date.
+    Must be called from a sync context (e.g. a thread pool executor) because
+    env.py uses asyncio.run() internally.
+    """
+    from alembic.command import upgrade
+    from alembic.config import Config
+
+    ini_path = Path(__file__).parents[4] / "alembic.ini"
+    upgrade(Config(str(ini_path)), "head")
