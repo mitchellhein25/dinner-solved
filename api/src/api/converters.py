@@ -7,14 +7,14 @@ from domain.entities.household import HouseholdMember
 from domain.entities.meal_plan import DayOfWeek, MealPlanTemplate, MealSlot, MealType
 from domain.entities.preferences import UserPreferences
 from domain.entities.recipe import GroceryCategory, Ingredient, Recipe
-from application.use_cases.suggest_recipes import RecipeSuggestion
+from application.use_cases.suggest_recipes import SlotOptions
 
 from .schemas.grocery import GroceryListItemSchema
 from .schemas.household import HouseholdMemberSchema
 from .schemas.plan import (
     MealPlanTemplateSchema,
     MealSlotSchema,
-    RecipeSuggestionSchema,
+    RecipeOptionsSchema,
 )
 from .schemas.preferences import PreferencesSchema
 from .schemas.recipe import IngredientSchema, RecipeSchema
@@ -106,8 +106,11 @@ def schema_to_template(s: MealPlanTemplateSchema) -> MealPlanTemplate:
     return MealPlanTemplate(id=s.id, slots=[schema_to_slot(sl) for sl in s.slots])
 
 
-def suggestion_to_schema(s: RecipeSuggestion) -> RecipeSuggestionSchema:
-    return RecipeSuggestionSchema(slot=slot_to_schema(s.slot), recipe=recipe_to_schema(s.recipe))
+def slot_options_to_schema(so: SlotOptions) -> RecipeOptionsSchema:
+    return RecipeOptionsSchema(
+        slot=slot_to_schema(so.slot),
+        options=[recipe_to_schema(r) for r in so.options],
+    )
 
 
 # ---------------------------------------------------------------------------

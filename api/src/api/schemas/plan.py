@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -22,19 +23,13 @@ class SaveTemplateRequest(BaseModel):
     template: MealPlanTemplateSchema
 
 
+# ---------------------------------------------------------------------------
+# Confirm — unchanged: frontend sends 1 chosen recipe per slot
+# ---------------------------------------------------------------------------
+
 class RecipeSuggestionSchema(BaseModel):
     slot: MealSlotSchema
     recipe: RecipeSchema
-
-
-class SuggestRequest(BaseModel):
-    week_context: str | None = None
-
-
-class RefineRequest(BaseModel):
-    existing_assignments: dict[str, RecipeSchema]  # slot_id -> recipe
-    user_message: str
-    slot_id_to_refine: str | None = None
 
 
 class ConfirmRequest(BaseModel):
@@ -48,5 +43,32 @@ class WeeklyPlanSchema(BaseModel):
     assignments: list[dict]  # {slot_id, recipe_id}
 
 
-class SuggestionsResponse(BaseModel):
-    suggestions: list[RecipeSuggestionSchema]
+# ---------------------------------------------------------------------------
+# New 3-option flow
+# ---------------------------------------------------------------------------
+
+class RecipeOptionsSchema(BaseModel):
+    slot: MealSlotSchema
+    options: list[RecipeSchema]  # exactly 3 items
+
+
+class SlotOptionsResponse(BaseModel):
+    slot_options: list[RecipeOptionsSchema]
+    budget_remaining: float
+    budget_resets_at: datetime | None = None
+
+
+class SuggestRequest(BaseModel):
+    week_context: str | None = None
+
+
+class RegenerateSlotRequest(BaseModel):
+    slot_id: str
+    existing_chosen: dict[str, RecipeSchema]  # slot_id -> currently chosen recipe
+    week_context: str | None = None
+
+
+class RefineRequest(BaseModel):
+    existing_assignments: dict[str, RecipeSchema]  # slot_id -> recipe
+    user_message: str
+    locked_slot_ids: list[str] = []

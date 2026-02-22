@@ -36,6 +36,7 @@ export interface MealPlanTemplate {
   slots: MealSlot[]
 }
 
+/** Used only when confirming — 1 chosen recipe per slot sent to the API. */
 export interface RecipeSuggestion {
   slot: MealSlot
   recipe: Recipe
@@ -65,6 +66,20 @@ export interface UserPreferences {
   liked_ingredients: string[]
   disliked_ingredients: string[]
   cuisine_preferences: string[]
+}
+
+/** Per-slot state in the planning UI. */
+export interface SlotState {
+  slot: MealSlot
+  options: Recipe[]          // 3 candidates from AI
+  chosenIndex: number | null // index into options[], or null if not chosen
+  locked: boolean
+  regenerating: boolean      // true while a per-slot regenerate is in-flight
+}
+
+export interface GenerationBudget {
+  remaining: number       // 0.0–3.0
+  resetsAt: string | null // ISO timestamp, null if budget not yet started
 }
 
 export const DAY_LABELS: Record<string, string> = {

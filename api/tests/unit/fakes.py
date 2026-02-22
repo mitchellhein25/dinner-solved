@@ -102,20 +102,32 @@ class InMemoryPreferenceRepository(PreferenceRepository):
 
 
 class FakeAIPort(AIPort):
-    """Returns a fixed list of recipes regardless of the request."""
+    """
+    Returns fixed recipes regardless of the request.
+
+    suggest_recipes / refine_recipes both return List[List[Recipe]]:
+    each recipe in `recipes_to_return` becomes a 3-item inner list
+    (the same recipe repeated for simplicity in tests).
+
+    For refine_recipes the fake respects locked_slot_ids, filtering slots
+    so the returned list length matches the number of unlocked slots.
+    """
 
     def __init__(self, recipes_to_return: Optional[List[Recipe]] = None):
         self._recipes: List[Recipe] = list(recipes_to_return or [])
         self.last_suggestion_request: Optional[SuggestionRequest] = None
         self.last_refinement_request: Optional[RefinementRequest] = None
 
-    async def suggest_recipes(self, request: SuggestionRequest) -> List[Recipe]:
+    async def suggest_recipes(self, request: SuggestionRequest) -> List[List[Recipe]]:
         self.last_suggestion_request = request
-        return list(self._recipes)
+        return [[r, r, r] for r in self._recipes[: len(request.slots)]]
 
-    async def refine_recipes(self, request: RefinementRequest) -> List[Recipe]:
+    async def refine_recipes(self, request: RefinementRequest) -> List[List[Recipe]]:
         self.last_refinement_request = request
-        return list(self._recipes)
+        unlocked = [
+            s for s in request.slots if str(s.id) not in request.locked_slot_ids
+        ]
+        return [[r, r, r] for r in self._recipes[: len(unlocked)]]
 
 
 class FakeExportPort(ExportPort):

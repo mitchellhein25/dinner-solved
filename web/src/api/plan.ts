@@ -1,5 +1,16 @@
-import type { MealPlanTemplate, Recipe, RecipeSuggestion, WeeklyPlan } from '@/types'
+import type { MealPlanTemplate, MealSlot, Recipe, RecipeSuggestion, WeeklyPlan } from '@/types'
 import { apiClient } from './client'
+
+export interface SlotOptionsData {
+  slot: MealSlot
+  options: Recipe[]
+}
+
+export interface SlotOptionsResponse {
+  slot_options: SlotOptionsData[]
+  budget_remaining: number
+  budget_resets_at: string | null
+}
 
 export const planApi = {
   getTemplate: () => apiClient.get<MealPlanTemplate>('/api/template'),
@@ -8,19 +19,30 @@ export const planApi = {
     apiClient.post<MealPlanTemplate>('/api/template', { template }),
 
   suggest: (weekContext?: string) =>
-    apiClient.post<{ suggestions: RecipeSuggestion[] }>('/api/plan/suggest', {
+    apiClient.post<SlotOptionsResponse>('/api/plan/suggest', {
       week_context: weekContext ?? null,
     }),
 
   refine: (
     existingAssignments: Record<string, Recipe>,
     userMessage: string,
-    slotIdToRefine?: string,
+    lockedSlotIds: string[] = [],
   ) =>
-    apiClient.post<{ suggestions: RecipeSuggestion[] }>('/api/plan/refine', {
+    apiClient.post<SlotOptionsResponse>('/api/plan/refine', {
       existing_assignments: existingAssignments,
       user_message: userMessage,
-      slot_id_to_refine: slotIdToRefine ?? null,
+      locked_slot_ids: lockedSlotIds,
+    }),
+
+  suggestSlot: (
+    slotId: string,
+    existingChosen: Record<string, Recipe>,
+    weekContext?: string,
+  ) =>
+    apiClient.post<SlotOptionsResponse>('/api/plan/suggest-slot', {
+      slot_id: slotId,
+      existing_chosen: existingChosen,
+      week_context: weekContext ?? null,
     }),
 
   confirm: (weekStartDate: string, suggestions: RecipeSuggestion[]) =>

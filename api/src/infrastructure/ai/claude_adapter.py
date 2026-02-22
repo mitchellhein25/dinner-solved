@@ -11,7 +11,10 @@ from domain.entities.recipe import GroceryCategory, Ingredient, Recipe
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
 SYSTEM_PROMPT = """You are a meal planning assistant for Dinner Solved.
-When asked to suggest recipes, respond ONLY with a valid JSON array.
+When asked to suggest recipes, respond ONLY with a valid JSON array of arrays.
+Each inner array contains exactly 3 distinct recipe options for one slot.
+Structure: [[option1, option2, option3], [option1, option2, option3], ...]
+
 Each recipe must follow this exact structure:
 {
   "name": "Recipe Name",
@@ -33,7 +36,8 @@ All quantities must reflect the raw, pre-cooking weight or volume as it would be
 Account for cooking loss — for example, meat quantities should be raw weight (chicken loses ~25% when cooked, ground beef ~20%), and vegetables should be unprepped weight.
 Valid category values: produce, meat, dairy, pantry, frozen, bakery, other
 Valid unit examples: lbs, oz, cups, tbsp, tsp, whole, cloves, slices, cans
-Return exactly one recipe per slot requested. No additional text, only JSON."""
+The 3 options per slot must be meaningfully different from each other.
+No additional text outside the JSON array."""
 
 
 class ClaudeAdapter(AIPort):
@@ -41,13 +45,18 @@ class ClaudeAdapter(AIPort):
         self._client = AsyncAnthropic(api_key=api_key)
         self._model = model
 
-    async def suggest_recipes(self, request: SuggestionRequest) -> List[Recipe]:
+    async def suggest_recipes(self, request: SuggestionRequest) -> List[List[Recipe]]:
         prompt = self._build_suggestion_prompt(request)
-        return await self._call_and_parse(prompt, expected_count=len(request.slots))
+        return await self._call_and_parse(prompt, expected_slot_count=len(request.slots))
 
-    async def refine_recipes(self, request: RefinementRequest) -> List[Recipe]:
-        prompt = self._build_refinement_prompt(request)
-        return await self._call_and_parse(prompt, expected_count=len(request.slots))
+    async def refine_recipes(self, request: RefinementRequest) -> List[List[Recipe]]:
+        unlocked_slots = [
+            s for s in request.slots if str(s.id) not in request.locked_slot_ids
+        ]
+        if not unlocked_slots:
+            return []
+        prompt = self._build_refinement_prompt(request, unlocked_slots)
+        return await self._call_and_parse(prompt, expected_slot_count=len(unlocked_slots))
 
     # ------------------------------------------------------------------
     # Prompt builders
@@ -61,7 +70,7 @@ class ClaudeAdapter(AIPort):
         )
         member_names = [m.name for m in request.members]
         lines = [
-            f"Suggest one recipe for each of these meal slots:\n{slots_desc}",
+            f"Suggest 3 different recipe options for each of these meal slots:\n{slots_desc}",
             "",
             "Household context:",
             f"- Members: {member_names}",
@@ -75,36 +84,45 @@ class ClaudeAdapter(AIPort):
         if request.week_context:
             lines.append(f"- This week: {request.week_context}")
         lines.append("")
-        lines.append(f"Return a JSON array with exactly {len(request.slots)} recipes.")
+        lines.append(
+            f"Return a JSON array of arrays with exactly {len(request.slots)} inner arrays, "
+            f"each containing exactly 3 recipe objects."
+        )
         return "\n".join(lines)
 
     @staticmethod
-    def _build_refinement_prompt(request: RefinementRequest) -> str:
+    def _build_refinement_prompt(
+        request: RefinementRequest, unlocked_slots: list
+    ) -> str:
         existing_desc = "\n".join(
             f"- {slot_id}: {recipe.name}"
             for slot_id, recipe in request.existing_assignments.items()
+        )
+        locked_ids = set(request.locked_slot_ids)
+        locked_desc = "\n".join(
+            f"- {s.name} (LOCKED — do not change)"
+            for s in request.slots
+            if str(s.id) in locked_ids
+        )
+        unlocked_desc = "\n".join(
+            f"- {s.name} ({s.meal_type.value}, {s.day_count} days)"
+            for s in unlocked_slots
         )
         lines = [
             f'User request: "{request.user_message}"',
             "",
             "Current meal plan:",
             existing_desc,
-            "",
         ]
-        if request.slot_id_to_refine:
-            lines.append(f"Only change the slot with id: {request.slot_id_to_refine}")
-        else:
-            lines.append("You may change any or all slots as needed.")
-
-        slots_desc = "\n".join(
-            f"- {s.name} ({s.meal_type.value}, {s.day_count} days)"
-            for s in request.slots
-        )
+        if locked_desc:
+            lines += ["", "Locked slots (keep as-is):", locked_desc]
         lines += [
             "",
-            f"All meal slots:\n{slots_desc}",
+            f"Provide 3 options for each of these {len(unlocked_slots)} unlocked slot(s):",
+            unlocked_desc,
             "",
-            f"Return a JSON array with exactly {len(request.slots)} recipes (one per slot, in order).",
+            f"Return a JSON array of arrays with exactly {len(unlocked_slots)} inner arrays, "
+            f"each containing exactly 3 recipe objects.",
         ]
         return "\n".join(lines)
 
@@ -112,10 +130,12 @@ class ClaudeAdapter(AIPort):
     # API call + parsing
     # ------------------------------------------------------------------
 
-    async def _call_and_parse(self, prompt: str, expected_count: int) -> List[Recipe]:
+    async def _call_and_parse(
+        self, prompt: str, expected_slot_count: int
+    ) -> List[List[Recipe]]:
         response = await self._client.messages.create(
             model=self._model,
-            max_tokens=4096,
+            max_tokens=8192,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -131,12 +151,21 @@ class ClaudeAdapter(AIPort):
         data = json.loads(raw)
         if not isinstance(data, list):
             raise ValueError(f"Expected JSON array from AI, got: {type(data)}")
-        if len(data) != expected_count:
+        if len(data) != expected_slot_count:
             raise ValueError(
-                f"Expected {expected_count} recipes from AI, got {len(data)}"
+                f"Expected {expected_slot_count} slot groups from AI, got {len(data)}"
             )
 
-        return [self._parse_recipe(item) for item in data]
+        result: List[List[Recipe]] = []
+        for i, inner in enumerate(data):
+            if not isinstance(inner, list) or len(inner) != 3:
+                count = len(inner) if isinstance(inner, list) else "non-list"
+                raise ValueError(
+                    f"Slot {i}: expected 3 recipe options, got {count}"
+                )
+            result.append([self._parse_recipe(item) for item in inner])
+
+        return result
 
     @staticmethod
     def _parse_recipe(data: dict) -> Recipe:

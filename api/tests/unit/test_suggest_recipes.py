@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from application.use_cases.suggest_recipes import RecipeSuggestion, SuggestRecipesUseCase
+from application.use_cases.suggest_recipes import SlotOptions, SuggestRecipesUseCase
 from domain.entities.household import HouseholdMember
 from domain.entities.meal_plan import DayOfWeek, MealPlanTemplate, MealSlot, MealType
 from domain.entities.preferences import UserPreferences
@@ -75,7 +75,7 @@ def build_use_case(
 # ---------------------------------------------------------------------------
 
 class TestSuggestRecipes:
-    async def test_returns_one_suggestion_per_slot(self):
+    async def test_returns_one_slot_options_per_slot(self):
         template = make_template(n_slots=3)
         recipes = [make_recipe(f"Recipe {i}") for i in range(3)]
         use_case = build_use_case(template=template, recipes_to_return=recipes)
@@ -83,9 +83,19 @@ class TestSuggestRecipes:
         result = await use_case.execute()
 
         assert len(result) == 3
-        assert all(isinstance(s, RecipeSuggestion) for s in result)
+        assert all(isinstance(s, SlotOptions) for s in result)
 
-    async def test_each_suggestion_pairs_correct_slot_and_recipe(self):
+    async def test_each_slot_options_has_three_choices(self):
+        template = make_template(n_slots=2)
+        recipes = [make_recipe("Chicken"), make_recipe("Salmon")]
+        use_case = build_use_case(template=template, recipes_to_return=recipes)
+
+        result = await use_case.execute()
+
+        assert len(result[0].options) == 3
+        assert len(result[1].options) == 3
+
+    async def test_each_slot_options_pairs_correct_slot(self):
         template = make_template(n_slots=2)
         recipes = [make_recipe("Chicken"), make_recipe("Salmon")]
         use_case = build_use_case(template=template, recipes_to_return=recipes)
@@ -93,9 +103,9 @@ class TestSuggestRecipes:
         result = await use_case.execute()
 
         assert result[0].slot.id == template.slots[0].id
-        assert result[0].recipe.name == "Chicken"
+        assert result[0].options[0].name == "Chicken"
         assert result[1].slot.id == template.slots[1].id
-        assert result[1].recipe.name == "Salmon"
+        assert result[1].options[0].name == "Salmon"
 
     async def test_raises_when_no_template(self):
         use_case = build_use_case(template=None)
@@ -172,3 +182,53 @@ class TestSuggestRecipes:
         await use_case.execute()
 
         assert len(ai.last_suggestion_request.members) == 2
+
+    async def test_execute_for_slot_returns_single_slot_options(self):
+        template = make_template(n_slots=2)
+        target_slot = template.slots[0]
+        recipe = make_recipe("Tacos")
+        ai = FakeAIPort(recipes_to_return=[recipe])
+        use_case = SuggestRecipesUseCase(
+            ai_adapter=ai,
+            template_repo=InMemoryMealPlanTemplateRepository(template=template),
+            household_repo=InMemoryHouseholdRepository(),
+            preference_repo=InMemoryPreferenceRepository(),
+        )
+
+        result = await use_case.execute_for_slot(
+            slot_id=str(target_slot.id), existing_chosen={}
+        )
+
+        assert isinstance(result, SlotOptions)
+        assert result.slot.id == target_slot.id
+        assert len(result.options) == 3
+
+    async def test_execute_for_slot_raises_on_unknown_slot(self):
+        template = make_template(1)
+        use_case = build_use_case(template=template, recipes_to_return=[make_recipe()])
+
+        with pytest.raises(ValueError, match="not found"):
+            await use_case.execute_for_slot(
+                slot_id=str(uuid.uuid4()), existing_chosen={}
+            )
+
+    async def test_execute_for_slot_includes_existing_context(self):
+        template = make_template(2)
+        recipe = make_recipe("Tacos")
+        ai = FakeAIPort(recipes_to_return=[recipe])
+        use_case = SuggestRecipesUseCase(
+            ai_adapter=ai,
+            template_repo=InMemoryMealPlanTemplateRepository(template=template),
+            household_repo=InMemoryHouseholdRepository(),
+            preference_repo=InMemoryPreferenceRepository(),
+        )
+        existing = {str(template.slots[1].id): make_recipe("Pasta")}
+
+        await use_case.execute_for_slot(
+            slot_id=str(template.slots[0].id), existing_chosen=existing
+        )
+
+        # Week context should include existing recipe names
+        req = ai.last_suggestion_request
+        assert req.week_context is not None
+        assert "Pasta" in req.week_context

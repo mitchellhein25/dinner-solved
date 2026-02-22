@@ -15,6 +15,7 @@ from application.use_cases.manage_household import ManageHouseholdUseCase
 from application.use_cases.manage_template import ManageTemplateUseCase
 from application.use_cases.refine_recipes import RefineRecipesUseCase
 from application.use_cases.suggest_recipes import SuggestRecipesUseCase
+from api.rate_limiter import RateLimiter
 from domain.services.grocery_list_service import GroceryListService
 from domain.services.meal_plan_service import MealPlanService
 from domain.services.serving_calculator import ServingCalculator
@@ -131,6 +132,20 @@ def get_csv_adapter() -> CsvExportAdapter:
 def get_sheets_adapter() -> GoogleSheetsAdapter:
     share_email = os.environ.get("GOOGLE_SHARE_EMAIL")
     return GoogleSheetsAdapter(share_email=share_email)
+
+
+# ---------------------------------------------------------------------------
+# Rate limiter singleton
+# ---------------------------------------------------------------------------
+
+_rate_limiter = RateLimiter()
+
+
+def get_rate_limiter() -> RateLimiter:
+    return _rate_limiter
+
+
+RateLimiterDep = Annotated[RateLimiter, Depends(get_rate_limiter)]
 
 
 # ---------------------------------------------------------------------------

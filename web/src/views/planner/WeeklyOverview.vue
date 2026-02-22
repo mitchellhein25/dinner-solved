@@ -64,7 +64,7 @@ async function suggest() {
         </div>
 
         <button class="btn btn--primary btn--full suggest-btn" @click="suggest">
-          ✨ Suggest Recipes
+          ✨ Start Planning
         </button>
       </template>
 
