@@ -26,6 +26,7 @@ const saving = ref(false)
 
 // Delete state
 const deleting = ref(false)
+const downloadingPdf = ref(false)
 
 const groupedIngredients = computed(() => {
   if (!recipe.value) return {} as Record<string, Ingredient[]>
@@ -36,10 +37,6 @@ const groupedIngredients = computed(() => {
   }
   return groups
 })
-
-const pdfUrl = computed(() =>
-  recipe.value ? recipesApi.getRecipePdfUrl(recipe.value.id) : null
-)
 
 onMounted(async () => {
   try {
@@ -104,6 +101,16 @@ async function saveEdit() {
     }
   } finally {
     saving.value = false
+  }
+}
+
+async function downloadPdf() {
+  if (!recipe.value) return
+  downloadingPdf.value = true
+  try {
+    await recipesApi.downloadRecipePdf(recipe.value.id, recipe.value.name)
+  } finally {
+    downloadingPdf.value = false
   }
 }
 
@@ -231,13 +238,14 @@ async function deleteRecipe() {
 
         <!-- Actions row -->
         <div class="actions-row">
-          <a
-            v-if="pdfUrl"
-            :href="pdfUrl"
+          <button
             class="btn btn--ghost btn--sm"
-            download
-            target="_blank"
-          >📄 Download PDF</a>
+            :disabled="downloadingPdf"
+            @click="downloadPdf"
+          >
+            <LoadingSpinner v-if="downloadingPdf" size="sm" />
+            <span v-else>📄 Download PDF</span>
+          </button>
           <button
             class="btn btn--ghost btn--sm delete-btn"
             :disabled="deleting"

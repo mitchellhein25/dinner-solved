@@ -1,4 +1,3 @@
-import asyncio
 import os
 
 from dotenv import load_dotenv
@@ -7,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
-from infrastructure.db.postgres.database import init_db, run_migrations  # noqa: E402 (must be after load_dotenv)
+from infrastructure.db.postgres.database import init_db  # noqa: E402 (must be after load_dotenv)
 
 from api.routers import auth, grocery, household, plan, preferences, recipes, template  # noqa: E402
 
@@ -35,10 +34,6 @@ async def startup() -> None:
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
         init_db(database_url)
-        # Run in a thread pool so asyncio.run() inside env.py doesn't clash
-        # with the already-running FastAPI event loop.
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, run_migrations)
 
 
 @app.get("/health")

@@ -26,6 +26,18 @@ const byCategory = computed(() => {
   return groups
 })
 
+async function exportPdf() {
+  exporting.value = true
+  exportMsg.value = null
+  try {
+    await groceryApi.downloadGroceryPdf(planStore.weekStartDate)
+  } catch (e) {
+    exportMsg.value = 'PDF export failed: ' + (e as Error).message
+  } finally {
+    exporting.value = false
+  }
+}
+
 async function exportCsv() {
   exporting.value = true
   exportMsg.value = null
@@ -50,9 +62,9 @@ async function exportCsv() {
 <template>
   <div class="page">
     <nav class="page__nav">
-      <router-link class="btn btn--ghost btn--sm" to="/suggestions">← Plan</router-link>
+      <router-link class="btn btn--ghost btn--sm" to="/">← Plan</router-link>
       <span class="page__nav-brand">Grocery List</span>
-      <router-link class="btn btn--ghost btn--sm" to="/">Home</router-link>
+      <span />
     </nav>
 
     <div class="page__body container">
@@ -91,12 +103,11 @@ async function exportCsv() {
             <LoadingSpinner v-if="exporting" size="sm" />
             <span v-else>📄 Export CSV</span>
           </button>
-          <a
+          <button
             class="btn btn--ghost btn--full"
-            :href="groceryApi.getGroceryPdfUrl(planStore.weekStartDate)"
-            target="_blank"
-            download
-          >📥 Download PDF</a>
+            :disabled="exporting"
+            @click="exportPdf"
+          >📥 Download PDF</button>
         </div>
       </template>
     </div>

@@ -37,6 +37,29 @@ INK = (30, 30, 30)
 INK_LIGHT = (110, 110, 110)
 WHITE = (255, 255, 255)
 
+_UNICODE_MAP = {
+    "\u2014": "--",   # em dash
+    "\u2013": "-",    # en dash
+    "\u2018": "'",    # left single quote
+    "\u2019": "'",    # right single quote
+    "\u201c": '"',    # left double quote
+    "\u201d": '"',    # right double quote
+    "\u2026": "...",  # ellipsis
+    "\u00b7": "-",    # middle dot
+    "\u2022": "-",    # bullet
+}
+
+
+def _safe(text: str) -> str:
+    """Sanitise text for fpdf2 core (latin-1) fonts.
+
+    Replaces common typographic characters with ASCII equivalents, then
+    drops anything still outside latin-1 (e.g. emojis).
+    """
+    for char, replacement in _UNICODE_MAP.items():
+        text = text.replace(char, replacement)
+    return text.encode("latin-1", errors="ignore").decode("latin-1")
+
 
 class _PDF(FPDF):
     """Base class with shared header / footer and helpers."""
@@ -60,20 +83,20 @@ class _PDF(FPDF):
         self.set_fill_color(*ACCENT)
         self.set_text_color(*WHITE)
         self.set_font("Helvetica", "B", 14)
-        self.cell(0, height, text, ln=True, fill=True, align="L")
+        self.cell(0, height, _safe(text), ln=True, fill=True, align="L")
         self.ln(4)
 
     def section_title(self, text: str) -> None:
         self.set_font("Helvetica", "B", 9)
         self.set_text_color(*INK_LIGHT)
         self.set_fill_color(240, 240, 245)
-        self.cell(0, 6, text.upper(), ln=True, fill=True)
+        self.cell(0, 6, _safe(text).upper(), ln=True, fill=True)
         self.ln(1)
 
     def body_text(self, text: str, size: int = 10) -> None:
         self.set_font("Helvetica", "", size)
         self.set_text_color(*INK)
-        self.multi_cell(0, 5, text)
+        self.multi_cell(0, 5, _safe(text))
 
 
 # ---------------------------------------------------------------------------
@@ -103,10 +126,10 @@ def build_grocery_pdf(items: List[GroceryListItem], week_start_date: str) -> byt
             pdf.set_font("Helvetica", "", 10)
             pdf.set_text_color(*INK)
             # Name left, qty right
-            pdf.cell(0, 6, f"{item.name}{recipe_str}", ln=False)
+            pdf.cell(0, 6, _safe(f"{item.name}{recipe_str}"), ln=False)
             pdf.set_font("Helvetica", "B", 10)
             pdf.set_x(-40)
-            pdf.cell(20, 6, qty_str, ln=True, align="R")
+            pdf.cell(20, 6, _safe(qty_str), ln=True, align="R")
         pdf.ln(2)
 
     return bytes(pdf.output())
@@ -131,16 +154,16 @@ def build_plan_pdf(
     for slot_name, recipe_display, days in slot_recipe_pairs:
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(*INK)
-        pdf.cell(0, 7, slot_name, ln=True)
+        pdf.cell(0, 7, _safe(slot_name), ln=True)
 
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(*INK_LIGHT)
-        days_str = " · ".join(days)
-        pdf.cell(0, 5, days_str, ln=True)
+        days_str = " / ".join(days)
+        pdf.cell(0, 5, _safe(days_str), ln=True)
 
         pdf.set_font("Helvetica", "", 11)
         pdf.set_text_color(*INK)
-        pdf.cell(0, 6, recipe_display, ln=True)
+        pdf.cell(0, 6, _safe(recipe_display), ln=True)
         pdf.ln(3)
 
     return bytes(pdf.output())
@@ -166,7 +189,7 @@ def build_recipe_pdf(recipe: Recipe) -> bytes:
         meta_parts.append(f"Used {recipe.times_used}x")
     if recipe.is_favorite:
         meta_parts.append("Favourite")
-    pdf.cell(0, 5, "  |  ".join(meta_parts), ln=True)
+    pdf.cell(0, 5, _safe("  |  ".join(meta_parts)), ln=True)
     pdf.ln(3)
 
     # Key ingredients
@@ -189,13 +212,13 @@ def build_recipe_pdf(recipe: Recipe) -> bytes:
                 continue
             pdf.set_font("Helvetica", "I", 9)
             pdf.set_text_color(*INK_LIGHT)
-            pdf.cell(0, 5, CATEGORY_LABELS.get(cat, cat), ln=True)
+            pdf.cell(0, 5, _safe(CATEGORY_LABELS.get(cat, cat)), ln=True)
             for ing in groups[cat]:
                 qty_str = f"{ing.quantity:g} {ing.unit}"
                 pdf.set_font("Helvetica", "", 10)
                 pdf.set_text_color(*INK)
-                pdf.cell(40, 5, qty_str)
-                pdf.cell(0, 5, ing.name, ln=True)
+                pdf.cell(40, 5, _safe(qty_str))
+                pdf.cell(0, 5, _safe(ing.name), ln=True)
         pdf.ln(3)
 
     # Cooking instructions
@@ -207,7 +230,7 @@ def build_recipe_pdf(recipe: Recipe) -> bytes:
             pdf.cell(8, 5, f"{i}.")
             pdf.set_font("Helvetica", "", 10)
             pdf.set_text_color(*INK)
-            pdf.multi_cell(0, 5, step)
+            pdf.multi_cell(0, 5, _safe(step))
             pdf.ln(1)
     else:
         pdf.set_font("Helvetica", "I", 9)

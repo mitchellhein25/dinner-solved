@@ -35,7 +35,7 @@ class PostgresRecipeRepository(RecipeRepository):
             row.prep_time = recipe.prep_time
             row.key_ingredients = recipe.key_ingredients
             row.times_used = (row.times_used or 0) + 1
-            row.last_used_at = datetime.now(timezone.utc)
+            row.last_used_at = datetime.utcnow()
             # Replace ingredients with latest from AI
             for ing in list(row.ingredients):
                 await self._session.delete(ing)
@@ -55,7 +55,7 @@ class PostgresRecipeRepository(RecipeRepository):
                 is_favorite=recipe.is_favorite,
                 source_url=recipe.source_url,
                 times_used=1,
-                last_used_at=datetime.now(timezone.utc),
+                last_used_at=datetime.utcnow(),
             )
             for ing in recipe.ingredients:
                 row.ingredients.append(self._ingredient_row(ing))

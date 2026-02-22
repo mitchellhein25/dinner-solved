@@ -54,5 +54,15 @@ export const planApi = {
   getConfirmedPlan: (weekStartDate: string) =>
     apiClient.get<ConfirmedPlan>(`/api/plan/${weekStartDate}`),
 
-  getPlanPdfUrl: (weekStartDate: string): string => `/api/plan/${weekStartDate}/export/pdf`,
+  async downloadPlanPdf(weekStartDate: string): Promise<void> {
+    const res = await apiClient.get(`/api/plan/${weekStartDate}/export/pdf`, {
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `meal-plan-${weekStartDate}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

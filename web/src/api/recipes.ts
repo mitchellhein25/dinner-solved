@@ -33,7 +33,15 @@ export const recipesApi = {
     await apiClient.delete(`/api/recipes/${id}`)
   },
 
-  getRecipePdfUrl(id: string): string {
-    return `/api/recipes/${id}/export/pdf`
+  async downloadRecipePdf(id: string, name: string): Promise<void> {
+    const res = await apiClient.get(`/api/recipes/${id}/export/pdf`, {
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
   },
 }

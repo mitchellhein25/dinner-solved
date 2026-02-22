@@ -20,6 +20,15 @@ export const groceryApi = {
       week_start_date: weekStartDate,
     }),
 
-  getGroceryPdfUrl: (weekStartDate: string): string =>
-    `/api/grocery/${weekStartDate}/export/pdf`,
+  async downloadGroceryPdf(weekStartDate: string): Promise<void> {
+    const res = await apiClient.get(`/api/grocery/${weekStartDate}/export/pdf`, {
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `grocery-list-${weekStartDate}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

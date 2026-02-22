@@ -16,8 +16,7 @@ const householdStore = useHouseholdStore()
 const confirmedAssignments = ref<ConfirmedAssignment[]>([])
 
 const hasConfirmedPlan = computed(() => confirmedAssignments.value.length > 0)
-
-const planPdfUrl = computed(() => planApi.getPlanPdfUrl(planStore.weekStartDate))
+const downloadingPdf = ref(false)
 
 onMounted(async () => {
   await Promise.all([
@@ -50,6 +49,15 @@ function servingTotal(slot: { member_ids: string[]; days: string[] }): string {
 
 function suggest() {
   router.push('/suggestions')
+}
+
+async function downloadPlanPdf() {
+  downloadingPdf.value = true
+  try {
+    await planApi.downloadPlanPdf(planStore.weekStartDate)
+  } finally {
+    downloadingPdf.value = false
+  }
 }
 </script>
 
@@ -106,12 +114,11 @@ function suggest() {
           <router-link class="btn btn--ghost btn--full" :to="`/grocery`">
             🛒 View Grocery List
           </router-link>
-          <a
+          <button
             class="btn btn--ghost btn--full"
-            :href="planPdfUrl"
-            target="_blank"
-            download
-          >📥 Download Plan PDF</a>
+            :disabled="downloadingPdf"
+            @click="downloadPlanPdf"
+          >📥 Download Plan PDF</button>
         </div>
       </template>
 
