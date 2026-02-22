@@ -132,6 +132,9 @@ class SlotAssignmentRow(Base):
 
 class RecipeRow(Base):
     __tablename__ = "recipes"
+    __table_args__ = (
+        UniqueConstraint("household_id", "name", name="uq_recipe_household_name"),
+    )
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True)
     household_id = Column(PG_UUID(as_uuid=True), ForeignKey("households.id"), nullable=False)
@@ -141,6 +144,9 @@ class RecipeRow(Base):
     key_ingredients = Column(ARRAY(String), nullable=False)
     is_favorite = Column(Boolean, default=False, nullable=False)
     source_url = Column(Text, nullable=True)
+    cooking_instructions = Column(ARRAY(String), nullable=True)
+    times_used = Column(Integer, default=0, nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     ingredients = relationship("IngredientRow", back_populates="recipe", cascade="all, delete-orphan")

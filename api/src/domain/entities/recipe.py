@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 from uuid import UUID
@@ -34,3 +35,6 @@ class Recipe:
     key_ingredients: List[str]  # short summary for display, e.g. ['chicken', 'rice']
     is_favorite: bool = False
     source_url: Optional[str] = None
+    cooking_instructions: Optional[List[str]] = None  # None until generated on demand
+    times_used: int = 0
+    last_used_at: Optional[datetime] = None

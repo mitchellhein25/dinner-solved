@@ -3,6 +3,7 @@ In-memory implementations of all domain repository and port interfaces.
 Used exclusively in unit tests — no database or network required.
 """
 from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import UUID
 
@@ -41,31 +42,65 @@ class InMemoryRecipeRepository(RecipeRepository):
     def __init__(self):
         self._recipes: Dict[UUID, Recipe] = {}
 
-    async def save_recipe(self, recipe: Recipe) -> None:
-        self._recipes[recipe.id] = recipe
+    async def save_recipe(self, recipe: Recipe) -> Recipe:
+        # Upsert: match by UUID first, then name
+        existing = self._recipes.get(recipe.id)
+        if existing is None:
+            existing = next(
+                (r for r in self._recipes.values() if r.name == recipe.name), None
+            )
+        if existing is not None:
+            updated = replace(
+                existing,
+                emoji=recipe.emoji,
+                prep_time=recipe.prep_time,
+                key_ingredients=recipe.key_ingredients,
+                ingredients=recipe.ingredients,
+                times_used=existing.times_used + 1,
+                last_used_at=datetime.now(timezone.utc),
+            )
+            self._recipes[existing.id] = updated
+            return updated
+        else:
+            new = replace(recipe, times_used=1, last_used_at=datetime.now(timezone.utc))
+            self._recipes[new.id] = new
+            return new
 
-    async def get_recipes(self) -> List[Recipe]:
-        return list(self._recipes.values())
+    async def get_recipes(
+        self,
+        sort: str = "recent",
+        favorites_only: bool = False,
+    ) -> List[Recipe]:
+        recipes = list(self._recipes.values())
+        if favorites_only:
+            recipes = [r for r in recipes if r.is_favorite]
+        if sort == "most_used":
+            recipes.sort(key=lambda r: (-r.times_used, r.name))
+        elif sort == "alpha":
+            recipes.sort(key=lambda r: r.name)
+        elif sort == "favorites_first":
+            recipes.sort(key=lambda r: (not r.is_favorite, r.name))
+        else:  # recent
+            recipes.sort(
+                key=lambda r: r.last_used_at or datetime.min, reverse=True
+            )
+        return recipes
 
     async def get_recipe(self, recipe_id: UUID) -> Optional[Recipe]:
         return self._recipes.get(recipe_id)
 
-    async def get_favorites(self) -> List[Recipe]:
-        return [r for r in self._recipes.values() if r.is_favorite]
-
-    async def toggle_favorite(self, recipe_id: UUID) -> None:
+    async def save_instructions(self, recipe_id: UUID, instructions: List[str]) -> None:
         r = self._recipes.get(recipe_id)
-        if r:
-            self._recipes[recipe_id] = Recipe(
-                id=r.id,
-                name=r.name,
-                emoji=r.emoji,
-                prep_time=r.prep_time,
-                ingredients=r.ingredients,
-                key_ingredients=r.key_ingredients,
-                is_favorite=not r.is_favorite,
-                source_url=r.source_url,
-            )
+        if r is not None:
+            self._recipes[recipe_id] = replace(r, cooking_instructions=instructions)
+
+    async def toggle_favorite(self, recipe_id: UUID) -> Optional[Recipe]:
+        r = self._recipes.get(recipe_id)
+        if r is None:
+            return None
+        updated = replace(r, is_favorite=not r.is_favorite)
+        self._recipes[recipe_id] = updated
+        return updated
 
 
 class InMemoryMealPlanTemplateRepository(MealPlanTemplateRepository):
@@ -117,6 +152,7 @@ class FakeAIPort(AIPort):
         self._recipes: List[Recipe] = list(recipes_to_return or [])
         self.last_suggestion_request: Optional[SuggestionRequest] = None
         self.last_refinement_request: Optional[RefinementRequest] = None
+        self.last_instructions_recipe: Optional[Recipe] = None
 
     async def suggest_recipes(self, request: SuggestionRequest) -> List[List[Recipe]]:
         self.last_suggestion_request = request
@@ -128,6 +164,10 @@ class FakeAIPort(AIPort):
             s for s in request.slots if str(s.id) not in request.locked_slot_ids
         ]
         return [[r, r, r] for r in self._recipes[: len(unlocked)]]
+
+    async def generate_instructions(self, recipe: Recipe) -> List[str]:
+        self.last_instructions_recipe = recipe
+        return [f"Step 1: Prepare {recipe.name}.", f"Step 2: Cook and serve."]
 
 
 class FakeExportPort(ExportPort):

@@ -21,13 +21,16 @@ class ConfirmPlanUseCase:
         week_start_date: str,
         suggestions: List[RecipeSuggestion],
     ) -> WeeklyPlan:
-        # Persist each suggested recipe so BuildGroceryList can retrieve them later
-        for suggestion in suggestions:
-            await self._recipe_repo.save_recipe(suggestion.recipe)
+        # Upsert each recipe; save_recipe returns the canonical entity (may have a
+        # different id if matched by name rather than UUID).
+        saved = [
+            (s.slot, await self._recipe_repo.save_recipe(s.recipe))
+            for s in suggestions
+        ]
 
         assignments = [
-            SlotAssignment(slot_id=s.slot.id, recipe_id=s.recipe.id)
-            for s in suggestions
+            SlotAssignment(slot_id=slot.id, recipe_id=recipe.id)
+            for slot, recipe in saved
         ]
         plan = WeeklyPlan(
             id=uuid4(),
