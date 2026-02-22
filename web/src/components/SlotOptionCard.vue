@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Recipe } from '@/types'
 
-const props = defineProps<{
+defineProps<{
   recipe: Recipe
   selected: boolean
   disabled: boolean
