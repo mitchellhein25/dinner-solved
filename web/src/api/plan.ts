@@ -53,4 +53,6 @@ export const planApi = {
 
   getConfirmedPlan: (weekStartDate: string) =>
     apiClient.get<ConfirmedPlan>(`/api/plan/${weekStartDate}`),
+
+  getPlanPdfUrl: (weekStartDate: string): string => `/api/plan/${weekStartDate}/export/pdf`,
 }

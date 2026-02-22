@@ -143,6 +143,7 @@ class RecipeRow(Base):
     prep_time = Column(Integer, nullable=False)
     key_ingredients = Column(ARRAY(String), nullable=False)
     is_favorite = Column(Boolean, default=False, nullable=False)
+    is_deleted = Column(Boolean, default=False, nullable=False, server_default="false")
     source_url = Column(Text, nullable=True)
     cooking_instructions = Column(ARRAY(String), nullable=True)
     times_used = Column(Integer, default=0, nullable=False)

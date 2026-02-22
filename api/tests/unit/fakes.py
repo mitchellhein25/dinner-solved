@@ -109,6 +109,26 @@ class InMemoryRecipeRepository(RecipeRepository):
         self._recipes[recipe_id] = updated
         return updated
 
+    async def delete_recipe(self, recipe_id: UUID) -> bool:
+        if recipe_id not in self._recipes:
+            return False
+        del self._recipes[recipe_id]
+        return True
+
+    async def update_recipe(self, recipe_id: UUID, name: str, emoji: str) -> Optional[Recipe]:
+        r = self._recipes.get(recipe_id)
+        if r is None:
+            return None
+        collision = next(
+            (v for k, v in self._recipes.items() if v.name == name and k != recipe_id),
+            None,
+        )
+        if collision is not None:
+            raise ValueError(f"A recipe named '{name}' already exists.")
+        updated = replace(r, name=name, emoji=emoji)
+        self._recipes[recipe_id] = updated
+        return updated
+
 
 class InMemoryMealPlanTemplateRepository(MealPlanTemplateRepository):
     def __init__(self, template: Optional[MealPlanTemplate] = None):

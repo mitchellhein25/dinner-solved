@@ -19,4 +19,7 @@ export const groceryApi = {
     apiClient.post<{ result: string }>('/api/grocery/export/sheets', {
       week_start_date: weekStartDate,
     }),
+
+  getGroceryPdfUrl: (weekStartDate: string): string =>
+    `/api/grocery/${weekStartDate}/export/pdf`,
 }

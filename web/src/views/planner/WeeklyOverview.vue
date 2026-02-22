@@ -6,7 +6,7 @@ import { usePlanStore } from '@/stores/plan'
 import type { ConfirmedAssignment } from '@/types'
 import { DAY_LABELS, MEAL_TYPE_LABELS } from '@/types'
 import { formatWeekRange } from '@/utils/date'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -14,6 +14,10 @@ const planStore = usePlanStore()
 const householdStore = useHouseholdStore()
 
 const confirmedAssignments = ref<ConfirmedAssignment[]>([])
+
+const hasConfirmedPlan = computed(() => confirmedAssignments.value.length > 0)
+
+const planPdfUrl = computed(() => planApi.getPlanPdfUrl(planStore.weekStartDate))
 
 onMounted(async () => {
   await Promise.all([
@@ -44,7 +48,7 @@ function servingTotal(slot: { member_ids: string[]; days: string[] }): string {
   return `${scaled} servings × ${slot.days.length} nights`
 }
 
-async function suggest() {
+function suggest() {
   router.push('/suggestions')
 }
 </script>
@@ -95,8 +99,20 @@ async function suggest() {
         </div>
 
         <button class="btn btn--primary btn--full suggest-btn" @click="suggest">
-          ✨ {{ confirmedAssignments.length > 0 ? 'Re-plan This Week' : 'Start Planning' }}
+          ✨ {{ hasConfirmedPlan ? 'Re-plan This Week' : 'Start Planning' }}
         </button>
+
+        <div v-if="hasConfirmedPlan" class="confirmed-actions">
+          <router-link class="btn btn--ghost btn--full" :to="`/grocery`">
+            🛒 View Grocery List
+          </router-link>
+          <a
+            class="btn btn--ghost btn--full"
+            :href="planPdfUrl"
+            target="_blank"
+            download
+          >📥 Download Plan PDF</a>
+        </div>
       </template>
 
       <div v-else class="empty-state">
@@ -155,5 +171,13 @@ async function suggest() {
 .slot-item__recipe-name { font-size: 0.9375rem; font-weight: 500; }
 
 .suggest-btn { margin-top: 0.5rem; }
+
+.confirmed-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
 .empty-state { text-align: center; padding: 3rem 0; display: flex; flex-direction: column; gap: 1rem; align-items: center; color: var(--ink-light); }
 </style>

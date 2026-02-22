@@ -5,15 +5,27 @@ import { useRecipesStore } from '@/stores/recipes'
 import { CATEGORY_LABELS } from '@/types'
 import type { Ingredient, RecipeDetail } from '@/types'
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
 const recipesStore = useRecipesStore()
 
 const recipe = ref<RecipeDetail | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const togglingFavorite = ref(false)
+const generatingInstructions = ref(false)
+
+// Edit state
+const editing = ref(false)
+const editName = ref('')
+const editEmoji = ref('')
+const editError = ref<string | null>(null)
+const saving = ref(false)
+
+// Delete state
+const deleting = ref(false)
 
 const groupedIngredients = computed(() => {
   if (!recipe.value) return {} as Record<string, Ingredient[]>
@@ -25,6 +37,10 @@ const groupedIngredients = computed(() => {
   return groups
 })
 
+const pdfUrl = computed(() =>
+  recipe.value ? recipesApi.getRecipePdfUrl(recipe.value.id) : null
+)
+
 onMounted(async () => {
   try {
     recipe.value = await recipesApi.getRecipe(route.params.id as string)
@@ -32,6 +48,19 @@ onMounted(async () => {
     error.value = (e as Error).message
   } finally {
     loading.value = false
+  }
+
+  // Non-blocking: generate instructions if they don't exist
+  if (recipe.value && recipe.value.cooking_instructions === null) {
+    generatingInstructions.value = true
+    try {
+      const updated = await recipesApi.generateInstructions(recipe.value.id)
+      recipe.value = updated
+    } catch {
+      // Non-fatal — just leave instructions as null
+    } finally {
+      generatingInstructions.value = false
+    }
   }
 })
 
@@ -43,6 +72,53 @@ async function toggleFavorite() {
     if (updated) recipe.value = updated
   } finally {
     togglingFavorite.value = false
+  }
+}
+
+function startEdit() {
+  if (!recipe.value) return
+  editName.value = recipe.value.name
+  editEmoji.value = recipe.value.emoji
+  editError.value = null
+  editing.value = true
+}
+
+function cancelEdit() {
+  editing.value = false
+  editError.value = null
+}
+
+async function saveEdit() {
+  if (!recipe.value) return
+  saving.value = true
+  editError.value = null
+  try {
+    const updated = await recipesApi.updateRecipe(recipe.value.id, editName.value.trim(), editEmoji.value.trim())
+    recipe.value = updated
+    editing.value = false
+  } catch (e: any) {
+    if (e?.response?.status === 409) {
+      editError.value = 'A recipe with that name already exists.'
+    } else {
+      editError.value = 'Failed to save changes.'
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+async function deleteRecipe() {
+  if (!recipe.value) return
+  if (!confirm(`Delete "${recipe.value.name}"? This cannot be undone.`)) return
+  deleting.value = true
+  try {
+    await recipesApi.deleteRecipe(recipe.value.id)
+    router.push('/recipes')
+  } catch {
+    // Show inline error
+    error.value = 'Failed to delete recipe.'
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -76,8 +152,8 @@ async function toggleFavorite() {
       </div>
 
       <template v-else-if="recipe">
-        <!-- Hero -->
-        <div class="hero">
+        <!-- Hero — normal or edit mode -->
+        <div v-if="!editing" class="hero">
           <span class="hero__emoji">{{ recipe.emoji }}</span>
           <div class="hero__body">
             <h1 class="hero__name">{{ recipe.name }}</h1>
@@ -85,6 +161,24 @@ async function toggleFavorite() {
               <span class="chip">{{ recipe.prep_time }} min</span>
               <span class="chip">Used {{ recipe.times_used }}×</span>
             </div>
+          </div>
+          <button class="btn btn--ghost btn--sm hero__edit-btn" title="Edit name / emoji" @click="startEdit">
+            ✏️
+          </button>
+        </div>
+
+        <div v-else class="hero-edit card">
+          <div class="hero-edit__row">
+            <input v-model="editEmoji" class="input hero-edit__emoji" maxlength="4" placeholder="😊" />
+            <input v-model="editName" class="input hero-edit__name" placeholder="Recipe name" @keyup.enter="saveEdit" @keyup.escape="cancelEdit" />
+          </div>
+          <div v-if="editError" class="error-banner" style="margin-top: 0.5rem">{{ editError }}</div>
+          <div class="hero-edit__actions">
+            <button class="btn btn--ghost btn--sm" :disabled="saving" @click="cancelEdit">Cancel</button>
+            <button class="btn btn--primary btn--sm" :disabled="saving || !editName.trim()" @click="saveEdit">
+              <LoadingSpinner v-if="saving" size="sm" />
+              <span v-else>Save</span>
+            </button>
           </div>
         </div>
 
@@ -114,12 +208,15 @@ async function toggleFavorite() {
           </div>
         </section>
 
-        <!-- Cooking instructions (null = still generating) -->
+        <!-- Cooking instructions -->
         <section class="section">
           <h2 class="section__title">Instructions</h2>
-          <div v-if="recipe.cooking_instructions === null" class="instructions-loading">
+          <div v-if="generatingInstructions" class="instructions-loading">
             <LoadingSpinner size="sm" />
             <span>Generating instructions…</span>
+          </div>
+          <div v-else-if="recipe.cooking_instructions === null" class="instructions-loading">
+            <span class="instructions-loading__none">Instructions not yet generated.</span>
           </div>
           <ol v-else class="instructions-list">
             <li
@@ -131,6 +228,25 @@ async function toggleFavorite() {
             </li>
           </ol>
         </section>
+
+        <!-- Actions row -->
+        <div class="actions-row">
+          <a
+            v-if="pdfUrl"
+            :href="pdfUrl"
+            class="btn btn--ghost btn--sm"
+            download
+            target="_blank"
+          >📄 Download PDF</a>
+          <button
+            class="btn btn--ghost btn--sm delete-btn"
+            :disabled="deleting"
+            @click="deleteRecipe"
+          >
+            <LoadingSpinner v-if="deleting" size="sm" />
+            <span v-else>🗑 Delete</span>
+          </button>
+        </div>
       </template>
     </div>
   </div>
@@ -167,6 +283,11 @@ async function toggleFavorite() {
   flex-shrink: 0;
 }
 
+.hero__body {
+  flex: 1;
+  min-width: 0;
+}
+
 .hero__name {
   font-family: var(--font-display);
   font-size: 1.5rem;
@@ -178,6 +299,39 @@ async function toggleFavorite() {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.hero__edit-btn {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+
+.hero-edit {
+  padding: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.hero-edit__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.hero-edit__emoji {
+  width: 4rem;
+  text-align: center;
+  font-size: 1.5rem;
+}
+
+.hero-edit__name {
+  flex: 1;
+}
+
+.hero-edit__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
 }
 
 .section {
@@ -244,6 +398,10 @@ async function toggleFavorite() {
   padding: 0.5rem 0;
 }
 
+.instructions-loading__none {
+  font-style: italic;
+}
+
 .instructions-list {
   display: flex;
   flex-direction: column;
@@ -254,5 +412,23 @@ async function toggleFavorite() {
 .instruction-step {
   font-size: 0.9375rem;
   line-height: 1.6;
+}
+
+.actions-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.delete-btn {
+  color: #c0392b;
+  border-color: #e0837a;
+}
+
+.delete-btn:hover:not(:disabled) {
+  background: #fff5f5;
 }
 </style>

@@ -15,6 +15,14 @@ const filteredRecipes = computed(() => {
   return recipesStore.recipes.filter((r) => r.name.toLowerCase().includes(q))
 })
 
+function lastUsedLabel(lastUsedAt: string | null | undefined): string {
+  if (!lastUsedAt) return ''
+  const days = Math.floor((Date.now() - new Date(lastUsedAt).getTime()) / 86_400_000)
+  if (days === 0) return 'Used today'
+  if (days === 1) return 'Used yesterday'
+  return `Used ${days} days ago`
+}
+
 onMounted(() => recipesStore.fetchRecipes())
 
 watch([() => recipesStore.sort, () => recipesStore.favoritesOnly], () => {
@@ -84,7 +92,7 @@ watch([() => recipesStore.sort, () => recipesStore.favoritesOnly], () => {
           <p class="recipe-card__ingredients">{{ recipe.key_ingredients.join(', ') }}</p>
           <div class="recipe-card__footer">
             <span class="recipe-card__meta">{{ recipe.prep_time }} min</span>
-            <span class="recipe-card__used">Used {{ recipe.times_used }}×</span>
+            <span class="recipe-card__used">{{ lastUsedLabel(recipe.last_used_at) }}</span>
           </div>
         </button>
       </div>

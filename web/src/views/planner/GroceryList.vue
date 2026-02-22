@@ -91,6 +91,12 @@ async function exportCsv() {
             <LoadingSpinner v-if="exporting" size="sm" />
             <span v-else>📄 Export CSV</span>
           </button>
+          <a
+            class="btn btn--ghost btn--full"
+            :href="groceryApi.getGroceryPdfUrl(planStore.weekStartDate)"
+            target="_blank"
+            download
+          >📥 Download PDF</a>
         </div>
       </template>
     </div>
@@ -109,5 +115,5 @@ async function exportCsv() {
 .item-row__recipes { font-size: 0.75rem; color: var(--ink-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-row__qty { font-size: 0.875rem; color: var(--ink-light); white-space: nowrap; flex-shrink: 0; }
 .empty-state { text-align: center; padding: 2rem; color: var(--ink-light); }
-.export-row { margin-top: 1.5rem; }
+.export-row { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
 </style>

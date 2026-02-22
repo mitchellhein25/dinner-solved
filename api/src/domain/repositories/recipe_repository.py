@@ -44,3 +44,15 @@ class RecipeRepository(ABC):
     async def get_recent_recipe_names(self, days: int = 14) -> List[str]:
         """Return names of recipes confirmed within the last `days` days, newest first."""
         ...
+
+    @abstractmethod
+    async def delete_recipe(self, recipe_id: UUID) -> bool:
+        """Soft-delete a recipe. Returns True if found and deleted, False if not found."""
+        ...
+
+    @abstractmethod
+    async def update_recipe(self, recipe_id: UUID, name: str, emoji: str) -> Optional[Recipe]:
+        """Update a recipe's name and emoji. Returns updated recipe, None if not found.
+        Raises ValueError if the new name already exists on another recipe in this household.
+        """
+        ...

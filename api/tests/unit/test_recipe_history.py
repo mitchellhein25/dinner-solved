@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from application.use_cases.confirm_plan import ConfirmPlanUseCase
+from application.use_cases.generate_instructions import GenerateInstructionsUseCase
 from application.use_cases.get_recipe import GetRecipeUseCase
 from application.use_cases.list_recipes import ListRecipesUseCase
 from application.use_cases.suggest_recipes import RecipeSuggestion
@@ -187,16 +188,16 @@ async def test_confirm_uses_canonical_id_when_name_matched():
 
 
 # ---------------------------------------------------------------------------
-# GetRecipeUseCase — lazy instruction generation
+# GenerateInstructionsUseCase — lazy instruction generation
 # ---------------------------------------------------------------------------
 
-async def test_get_recipe_generates_instructions_on_first_fetch():
+async def test_generate_instructions_generates_on_first_fetch():
     repo = InMemoryRecipeRepository()
     ai = FakeAIPort()
     recipe = await repo.save_recipe(make_recipe())
     assert recipe.cooking_instructions is None
 
-    use_case = GetRecipeUseCase(recipe_repo=repo, ai_port=ai)
+    use_case = GenerateInstructionsUseCase(recipe_repo=repo, ai_port=ai)
     result = await use_case.execute(recipe.id)
 
     assert result.cooking_instructions is not None
@@ -206,24 +207,44 @@ async def test_get_recipe_generates_instructions_on_first_fetch():
     assert cached.cooking_instructions == result.cooking_instructions
 
 
-async def test_get_recipe_skips_generation_when_instructions_exist():
+async def test_generate_instructions_skips_when_instructions_exist():
     repo = InMemoryRecipeRepository()
     ai = FakeAIPort()
     recipe = await repo.save_recipe(make_recipe())
     await repo.save_instructions(recipe.id, ["Already done."])
 
-    use_case = GetRecipeUseCase(recipe_repo=repo, ai_port=ai)
+    use_case = GenerateInstructionsUseCase(recipe_repo=repo, ai_port=ai)
     result = await use_case.execute(recipe.id)
 
     assert result.cooking_instructions == ["Already done."]
     assert ai.last_instructions_recipe is None  # AI never called
 
 
-async def test_get_recipe_returns_none_for_unknown_id():
+async def test_generate_instructions_returns_none_for_unknown_id():
     repo = InMemoryRecipeRepository()
     ai = FakeAIPort()
-    use_case = GetRecipeUseCase(recipe_repo=repo, ai_port=ai)
+    use_case = GenerateInstructionsUseCase(recipe_repo=repo, ai_port=ai)
     assert await use_case.execute(uuid4()) is None
+
+
+# ---------------------------------------------------------------------------
+# GetRecipeUseCase — immediate return without generation
+# ---------------------------------------------------------------------------
+
+async def test_get_recipe_returns_none_for_unknown_id():
+    repo = InMemoryRecipeRepository()
+    use_case = GetRecipeUseCase(recipe_repo=repo)
+    assert await use_case.execute(uuid4()) is None
+
+
+async def test_get_recipe_returns_recipe_without_generating_instructions():
+    repo = InMemoryRecipeRepository()
+    recipe = await repo.save_recipe(make_recipe())
+    use_case = GetRecipeUseCase(recipe_repo=repo)
+    result = await use_case.execute(recipe.id)
+    # cooking_instructions is None because we didn't call GenerateInstructionsUseCase
+    assert result is not None
+    assert result.cooking_instructions is None
 
 
 # ---------------------------------------------------------------------------

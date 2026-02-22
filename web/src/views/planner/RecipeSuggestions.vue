@@ -18,6 +18,10 @@ const householdStore = useHouseholdStore()
 // Mobile session pool drawer
 const poolOpen = ref(false)
 
+// Save progress feedback
+const saveMsg = ref<string | null>(null)
+let saveMsgTimer: ReturnType<typeof setTimeout> | null = null
+
 const budgetCountdown = ref<string | null>(null)
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
@@ -40,17 +44,20 @@ function updateCountdown() {
 onMounted(async () => {
   await Promise.all([
     householdStore.fetchMembers(),
-    // Ensure template is loaded so we can render blank slots in the initial state
     planStore.template ? Promise.resolve() : planStore.fetchTemplate(),
-    // Pre-seed the pool with past recipes (non-fatal if it fails)
     planStore.loadPoolHistory(),
   ])
+
+  // Restore saved session (sessionStorage → localStorage fallback)
+  planStore.restoreSession()
+
   updateCountdown()
   countdownTimer = setInterval(updateCountdown, 1000)
 })
 
 onUnmounted(() => {
   if (countdownTimer) clearInterval(countdownTimer)
+  if (saveMsgTimer) clearTimeout(saveMsgTimer)
 })
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -114,7 +121,19 @@ async function handleAssignFromHistory(item: RecipeListItem, slotId: string) {
   }
 }
 
-async function confirm() {
+function handleSaveProgress() {
+  planStore.saveProgress()
+  saveMsg.value = 'Progress saved!'
+  if (saveMsgTimer) clearTimeout(saveMsgTimer)
+  saveMsgTimer = setTimeout(() => { saveMsg.value = null }, 2500)
+}
+
+function handleStartOver() {
+  if (!confirm('Start over? This will clear all current suggestions.')) return
+  planStore.startOver()
+}
+
+async function confirmPlan() {
   await planStore.confirm()
   router.push('/grocery')
 }
@@ -166,19 +185,37 @@ async function confirm() {
         <main class="layout__main">
           <!-- Top controls row -->
           <div class="top-controls">
-            <button
-              v-if="planStore.slotStates.length > 0"
-              class="btn btn--ghost btn--sm"
-              :disabled="!canRegenerateAll || planStore.loading"
-              @click="handleGenerateAll"
-            >
-              <LoadingSpinner v-if="planStore.loading" size="sm" />
-              <span v-else>↺ Regenerate All</span>
-            </button>
-            <span v-else />
-            <button class="btn btn--ghost btn--sm pool-toggle" @click="poolOpen = !poolOpen">
-              Browse history
-            </button>
+            <div class="top-controls__left">
+              <button
+                v-if="planStore.slotStates.length > 0"
+                class="btn btn--ghost btn--sm"
+                :disabled="!canRegenerateAll || planStore.loading"
+                @click="handleGenerateAll"
+              >
+                <LoadingSpinner v-if="planStore.loading" size="sm" />
+                <span v-else>↺ Regenerate All</span>
+              </button>
+              <button
+                v-if="planStore.slotStates.length > 0"
+                class="btn btn--ghost btn--sm"
+                @click="handleStartOver"
+              >
+                Start over
+              </button>
+            </div>
+            <div class="top-controls__right">
+              <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
+              <button
+                v-if="planStore.slotStates.length > 0"
+                class="btn btn--ghost btn--sm"
+                @click="handleSaveProgress"
+              >
+                💾 Save
+              </button>
+              <button class="btn btn--ghost btn--sm pool-toggle" @click="poolOpen = !poolOpen">
+                Browse history
+              </button>
+            </div>
           </div>
 
           <!-- ── INITIAL STATE ── -->
@@ -282,10 +319,11 @@ async function confirm() {
             <button
               class="btn btn--primary btn--full confirm-btn"
               :disabled="!planStore.allSlotsChosen || planStore.loading"
-              @click="confirm"
+              @click="confirmPlan"
             >
               Confirm Plan & See Grocery List →
             </button>
+
           </template>
         </main>
 
@@ -442,7 +480,27 @@ async function confirm() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.top-controls__left {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.top-controls__right {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.save-msg {
+  font-size: 0.8125rem;
+  color: var(--accent);
+  font-weight: 500;
 }
 
 .pool-toggle {

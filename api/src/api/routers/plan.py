@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from application.use_cases.confirm_plan import ConfirmPlanUseCase
 from application.use_cases.refine_recipes import RefineRecipesUseCase
@@ -15,6 +16,7 @@ from api.dependencies import (
     get_recipe_repo,
     get_refine_recipes,
     get_suggest_recipes,
+    get_template_repo,
 )
 from api.schemas.plan import (
     ConfirmRequest,
@@ -26,8 +28,9 @@ from api.schemas.plan import (
     SuggestRequest,
     WeeklyPlanSchema,
 )
-from infrastructure.db.postgres.meal_plan_repo import PostgresWeeklyPlanRepository
+from infrastructure.db.postgres.meal_plan_repo import PostgresMealPlanTemplateRepository, PostgresWeeklyPlanRepository
 from infrastructure.db.postgres.recipe_repo import PostgresRecipeRepository
+from infrastructure.export.pdf_adapter import DAY_LABELS, build_plan_pdf
 
 router = APIRouter()
 
@@ -36,6 +39,7 @@ RefineDep = Annotated[RefineRecipesUseCase, Depends(get_refine_recipes)]
 ConfirmDep = Annotated[ConfirmPlanUseCase, Depends(get_confirm_plan)]
 PlanRepoDep = Annotated[PostgresWeeklyPlanRepository, Depends(get_plan_repo)]
 RecipeRepoDep = Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)]
+TemplateRepoDep = Annotated[PostgresMealPlanTemplateRepository, Depends(get_template_repo)]
 
 
 def _rate_limit_error(remaining: float, resets_at: datetime | None) -> HTTPException:
@@ -69,6 +73,44 @@ async def get_confirmed_plan(
                 ConfirmedAssignmentSchema(slot_id=a.slot_id, recipe=recipe_to_list_item(recipe))
             )
     return ConfirmedPlanSchema(week_start_date=week_start_date, assignments=assignments)
+
+
+@router.get("/{week_start_date}/export/pdf")
+async def export_plan_pdf(
+    week_start_date: str,
+    plan_repo: PlanRepoDep,
+    recipe_repo: RecipeRepoDep,
+    template_repo: TemplateRepoDep,
+):
+    plan = await plan_repo.get_plan(week_start_date)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="No confirmed plan for this week")
+
+    template = await template_repo.get_template()
+
+    # Build slot lookup: slot_id -> slot
+    slot_map = {}
+    if template:
+        for slot in template.slots:
+            slot_map[str(slot.id)] = slot
+
+    pairs = []
+    for a in plan.assignments:
+        recipe = await recipe_repo.get_recipe(a.recipe_id)
+        if recipe is None:
+            continue
+        slot = slot_map.get(str(a.slot_id))
+        slot_name = slot.name if slot else "Meal"
+        days = [DAY_LABELS.get(d.value, d.value) for d in slot.days] if slot else []
+        recipe_display = f"{recipe.emoji}  {recipe.name}"
+        pairs.append((slot_name, recipe_display, days))
+
+    pdf_bytes = build_plan_pdf(week_start_date, pairs)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="meal-plan-{week_start_date}.pdf"'},
+    )
 
 
 @router.post("/suggest", response_model=SlotOptionsResponse)

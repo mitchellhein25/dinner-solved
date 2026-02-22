@@ -14,8 +14,26 @@ export const recipesApi = {
     return res.data
   },
 
+  async generateInstructions(id: string): Promise<RecipeDetail> {
+    const res = await apiClient.post(`/api/recipes/${id}/instructions`)
+    return res.data
+  },
+
   async toggleFavorite(id: string): Promise<RecipeDetail> {
     const res = await apiClient.patch(`/api/recipes/${id}/favorite`)
     return res.data
+  },
+
+  async updateRecipe(id: string, name: string, emoji: string): Promise<RecipeDetail> {
+    const res = await apiClient.patch(`/api/recipes/${id}`, { name, emoji })
+    return res.data
+  },
+
+  async deleteRecipe(id: string): Promise<void> {
+    await apiClient.delete(`/api/recipes/${id}`)
+  },
+
+  getRecipePdfUrl(id: string): string {
+    return `/api/recipes/${id}/export/pdf`
   },
 }

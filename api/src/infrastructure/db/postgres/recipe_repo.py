@@ -80,7 +80,10 @@ class PostgresRecipeRepository(RecipeRepository):
     ) -> List[Recipe]:
         stmt = (
             select(RecipeRow)
-            .where(RecipeRow.household_id == self._household_id)
+            .where(
+                RecipeRow.household_id == self._household_id,
+                RecipeRow.is_deleted.is_(False),
+            )
             .options(selectinload(RecipeRow.ingredients))
         )
         if favorites_only:
@@ -113,6 +116,7 @@ class PostgresRecipeRepository(RecipeRepository):
             .where(
                 RecipeRow.household_id == self._household_id,
                 RecipeRow.last_used_at >= since,
+                RecipeRow.is_deleted.is_(False),
             )
             .order_by(RecipeRow.last_used_at.desc())
         )
@@ -123,6 +127,28 @@ class PostgresRecipeRepository(RecipeRepository):
         if row is None:
             return None
         row.is_favorite = not row.is_favorite
+        await self._session.flush()
+        return self._to_entity(row)
+
+    async def delete_recipe(self, recipe_id: UUID) -> bool:
+        row = await self._find_row_by_id(recipe_id)
+        if row is None:
+            return False
+        row.is_deleted = True
+        await self._session.flush()
+        return True
+
+    async def update_recipe(self, recipe_id: UUID, name: str, emoji: str) -> Optional[Recipe]:
+        row = await self._find_row_by_id(recipe_id)
+        if row is None:
+            return None
+        if row.name != name:
+            # Check for name collision with another recipe in this household
+            existing = await self._find_row_by_name(name)
+            if existing is not None and existing.id != recipe_id:
+                raise ValueError(f"A recipe named '{name}' already exists.")
+        row.name = name
+        row.emoji = emoji
         await self._session.flush()
         return self._to_entity(row)
 

@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.use_cases.build_grocery_list import BuildGroceryListUseCase
 from application.use_cases.confirm_plan import ConfirmPlanUseCase
+from application.use_cases.delete_recipe import DeleteRecipeUseCase
+from application.use_cases.generate_instructions import GenerateInstructionsUseCase
 from application.use_cases.get_recipe import GetRecipeUseCase
 from application.use_cases.list_recipes import ListRecipesUseCase
 from application.use_cases.manage_household import ManageHouseholdUseCase
@@ -18,6 +20,7 @@ from application.use_cases.manage_template import ManageTemplateUseCase
 from application.use_cases.refine_recipes import RefineRecipesUseCase
 from application.use_cases.suggest_recipes import SuggestRecipesUseCase
 from application.use_cases.toggle_favorite import ToggleFavoriteUseCase
+from application.use_cases.update_recipe import UpdateRecipeUseCase
 from api.rate_limiter import RateLimiter
 from domain.services.grocery_list_service import GroceryListService
 from domain.services.meal_plan_service import MealPlanService
@@ -214,13 +217,33 @@ def get_list_recipes(
 def get_get_recipe(
     recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
 ) -> GetRecipeUseCase:
-    return GetRecipeUseCase(recipe_repo=recipe_repo, ai_port=get_ai_adapter())
+    return GetRecipeUseCase(recipe_repo=recipe_repo)
 
 
 def get_toggle_favorite(
     recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
 ) -> ToggleFavoriteUseCase:
     return ToggleFavoriteUseCase(recipe_repo=recipe_repo)
+
+
+def get_delete_recipe(
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
+) -> DeleteRecipeUseCase:
+    return DeleteRecipeUseCase(recipe_repo=recipe_repo)
+
+
+def get_update_recipe(
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
+) -> UpdateRecipeUseCase:
+    return UpdateRecipeUseCase(recipe_repo=recipe_repo)
+
+
+def get_generate_instructions(
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
+) -> GenerateInstructionsUseCase:
+    return GenerateInstructionsUseCase(recipe_repo=recipe_repo, ai_port=get_ai_adapter())
+
+
 
 
 def get_build_grocery_list(

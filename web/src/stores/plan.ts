@@ -13,7 +13,41 @@ import type {
 } from '@/types'
 import { getWeekStart } from '@/utils/date'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+
+// ─── Persistence helpers ──────────────────────────────────────────────────────
+
+function sessionKey(week: string) {
+  return `plan-session-${week}`
+}
+
+function localKey(week: string) {
+  return `plan-saved-${week}`
+}
+
+interface PersistedState {
+  slotStates: Omit<SlotState, 'regenerating'>[]
+  sessionPool: Recipe[]
+}
+
+function serializeState(states: SlotState[], pool: Recipe[]): string {
+  const data: PersistedState = {
+    slotStates: states.map(({ regenerating: _r, ...rest }) => rest),
+    sessionPool: pool,
+  }
+  return JSON.stringify(data)
+}
+
+function parseState(raw: string | null): PersistedState | null {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as PersistedState
+  } catch {
+    return null
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const usePlanStore = defineStore('plan', () => {
   const template = ref<MealPlanTemplate | null>(null)
@@ -27,6 +61,21 @@ export const usePlanStore = defineStore('plan', () => {
   const chatLoading = ref(false)
   const error = ref<string | null>(null)
   const rateLimitError = ref<{ retryAfterSeconds: number } | null>(null)
+
+  // Auto-save slotStates to sessionStorage on any change
+  watch(
+    slotStates,
+    (states) => {
+      if (states.length > 0) {
+        try {
+          sessionStorage.setItem(sessionKey(weekStartDate.value), serializeState(states, sessionPool.value))
+        } catch {
+          // Storage might be full or unavailable — non-fatal
+        }
+      }
+    },
+    { deep: true },
+  )
 
   // ──────────────────────────────────────────────────────────────────────────
   // Helpers
@@ -58,6 +107,57 @@ export const usePlanStore = defineStore('plan', () => {
       retryAfterSeconds: detail?.retry_after_seconds ?? 600,
     }
     error.value = 'Rate limit reached — please wait before generating again.'
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Session persistence
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Try to restore slotStates from sessionStorage, then fall back to localStorage.
+   * Returns true if state was restored (caller can skip the initial suggest() call).
+   */
+  function restoreSession(): boolean {
+    const week = weekStartDate.value
+    const raw = sessionStorage.getItem(sessionKey(week)) ?? localStorage.getItem(localKey(week))
+    const saved = parseState(raw)
+    if (!saved || saved.slotStates.length === 0) return false
+
+    slotStates.value = saved.slotStates.map((s) => ({ ...s, regenerating: false }))
+    sessionPool.value = saved.sessionPool ?? []
+    return true
+  }
+
+  /**
+   * Persist current state to localStorage so it survives tab closes.
+   */
+  function saveProgress() {
+    if (slotStates.value.length === 0) return
+    try {
+      localStorage.setItem(localKey(weekStartDate.value), serializeState(slotStates.value, sessionPool.value))
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  /**
+   * Clear saved progress from both storages (called after confirm or "Start over").
+   */
+  function clearProgress() {
+    const week = weekStartDate.value
+    sessionStorage.removeItem(sessionKey(week))
+    localStorage.removeItem(localKey(week))
+  }
+
+  /**
+   * Reset all suggestion state and clear persisted progress.
+   */
+  function startOver() {
+    slotStates.value = []
+    sessionPool.value = []
+    error.value = null
+    rateLimitError.value = null
+    clearProgress()
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -263,6 +363,7 @@ export const usePlanStore = defineStore('plan', () => {
           recipe: ss.options[ss.chosenIndex!],
         }))
       await planApi.confirm(weekStartDate.value, suggestions)
+      clearProgress()
     } catch (e) {
       error.value = (e as Error).message
       throw e
@@ -312,6 +413,9 @@ export const usePlanStore = defineStore('plan', () => {
     fetchTemplate,
     saveTemplate,
     loadPoolHistory,
+    restoreSession,
+    saveProgress,
+    startOver,
     suggest,
     refine,
     regenerateSlot,
