@@ -48,8 +48,12 @@ onMounted(async () => {
     planStore.loadPoolHistory(),
   ])
 
-  // Restore saved session (sessionStorage → localStorage fallback)
-  planStore.restoreSession()
+  // Restore saved session (sessionStorage → localStorage fallback).
+  // If nothing was saved, seed slot states from the template so the session
+  // pool can assign recipes before suggestions are generated.
+  if (!planStore.restoreSession()) {
+    planStore.initFromTemplate()
+  }
 
   updateCountdown()
   countdownTimer = setInterval(updateCountdown, 1000)
@@ -163,7 +167,7 @@ async function confirmPlan() {
       </div>
 
       <!-- Budget bar (loaded state only) -->
-      <div v-if="planStore.slotStates.length > 0" class="budget-bar">
+      <div v-if="planStore.hasGeneratedOptions" class="budget-bar">
         <div class="budget-bar__info">
           <span class="budget-bar__label">
             {{ planStore.budget.remaining.toFixed(1) }} / 3 generations remaining
@@ -187,7 +191,7 @@ async function confirmPlan() {
           <div class="top-controls">
             <div class="top-controls__left">
               <button
-                v-if="planStore.slotStates.length > 0"
+                v-if="planStore.hasGeneratedOptions"
                 class="btn btn--ghost btn--sm"
                 :disabled="!canRegenerateAll || planStore.loading"
                 @click="handleGenerateAll"
@@ -196,7 +200,7 @@ async function confirmPlan() {
                 <span v-else>↺ Regenerate All</span>
               </button>
               <button
-                v-if="planStore.slotStates.length > 0"
+                v-if="planStore.hasGeneratedOptions"
                 class="btn btn--ghost btn--sm"
                 @click="handleStartOver"
               >
@@ -206,7 +210,7 @@ async function confirmPlan() {
             <div class="top-controls__right">
               <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
               <button
-                v-if="planStore.slotStates.length > 0"
+                v-if="planStore.hasGeneratedOptions"
                 class="btn btn--ghost btn--sm"
                 @click="handleSaveProgress"
               >
@@ -219,22 +223,27 @@ async function confirmPlan() {
           </div>
 
           <!-- ── INITIAL STATE ── -->
-          <template v-if="planStore.slotStates.length === 0">
-            <div v-if="planStore.template" class="slot-list">
+          <template v-if="!planStore.hasGeneratedOptions">
+            <div v-if="planStore.slotStates.length > 0" class="slot-list">
               <div
-                v-for="slot in planStore.template.slots"
-                :key="slot.id"
+                v-for="ss in planStore.slotStates"
+                :key="ss.slot.id"
                 class="slot-block slot-block--blank"
               >
                 <div class="slot-block__header">
                   <div class="slot-block__header-left">
-                    <span class="chip">{{ MEAL_TYPE_LABELS[slot.meal_type] }}</span>
+                    <span class="chip">{{ MEAL_TYPE_LABELS[ss.slot.meal_type] }}</span>
                     <span class="slot-block__days">
-                      {{ slot.days.map((d) => DAY_LABELS[d]).join(', ') }}
+                      {{ ss.slot.days.map((d) => DAY_LABELS[d]).join(', ') }}
                     </span>
                   </div>
                 </div>
-                <div class="slot-block__blank-body">No recipe chosen yet</div>
+                <div class="slot-block__blank-body">
+                  <template v-if="ss.chosenIndex !== null">
+                    {{ ss.options[ss.chosenIndex].emoji }} {{ ss.options[ss.chosenIndex].name }}
+                  </template>
+                  <template v-else>No recipe chosen yet</template>
+                </div>
               </div>
             </div>
 

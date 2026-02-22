@@ -129,6 +129,21 @@ export const usePlanStore = defineStore('plan', () => {
   }
 
   /**
+   * Initialise empty slot states from the template so the session pool can
+   * assign recipes before AI suggestions are generated.
+   */
+  function initFromTemplate() {
+    if (!template.value || slotStates.value.length > 0) return
+    slotStates.value = template.value.slots.map((slot) => ({
+      slot,
+      options: [],
+      chosenIndex: null,
+      locked: false,
+      regenerating: false,
+    }))
+  }
+
+  /**
    * Persist current state to localStorage so it survives tab closes.
    */
   function saveProgress() {
@@ -397,6 +412,11 @@ export const usePlanStore = defineStore('plan', () => {
     slotStates.value.length > 0 && slotStates.value.every((ss) => ss.chosenIndex !== null),
   )
 
+  /** True once AI options have been generated for at least one slot. */
+  const hasGeneratedOptions = computed(() =>
+    slotStates.value.some((ss) => ss.options.length > 0),
+  )
+
   return {
     template,
     slotStates,
@@ -410,10 +430,12 @@ export const usePlanStore = defineStore('plan', () => {
     error,
     rateLimitError,
     allSlotsChosen,
+    hasGeneratedOptions,
     fetchTemplate,
     saveTemplate,
     loadPoolHistory,
     restoreSession,
+    initFromTemplate,
     saveProgress,
     startOver,
     suggest,
