@@ -304,7 +304,9 @@ class ClaudeAdapter(AIPort):
             data = json.loads(raw)
             if "error" in data:
                 raise ValueError(data["error"])
-            return self._parse_recipe_with_instructions(data)
+            recipe = self._parse_recipe_with_instructions(data)
+            recipe.source_url = url
+            return recipe
 
         raise ValueError("Failed to extract recipe after multiple attempts")
 
