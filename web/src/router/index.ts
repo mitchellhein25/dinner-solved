@@ -73,9 +73,19 @@ const router = createRouter({
       component: () => import('@/views/recipes/RecipeRepository.vue'),
     },
     {
+      path: '/recipes/add',
+      name: 'recipe-add',
+      component: () => import('@/views/recipes/AddRecipe.vue'),
+    },
+    {
       path: '/recipes/:id',
       name: 'recipe-detail',
       component: () => import('@/views/recipes/RecipeDetail.vue'),
+    },
+    {
+      path: '/recipes/:id/edit',
+      name: 'recipe-edit',
+      component: () => import('@/views/recipes/EditRecipe.vue'),
     },
 
     // Fallback

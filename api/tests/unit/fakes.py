@@ -81,8 +81,9 @@ class InMemoryRecipeRepository(RecipeRepository):
         elif sort == "favorites_first":
             recipes.sort(key=lambda r: (not r.is_favorite, r.name))
         else:  # recent
+            _epoch = datetime.min.replace(tzinfo=timezone.utc)
             recipes.sort(
-                key=lambda r: r.last_used_at or datetime.min, reverse=True
+                key=lambda r: r.last_used_at or _epoch, reverse=True
             )
         return recipes
 
@@ -126,6 +127,49 @@ class InMemoryRecipeRepository(RecipeRepository):
         if collision is not None:
             raise ValueError(f"A recipe named '{name}' already exists.")
         updated = replace(r, name=name, emoji=emoji)
+        self._recipes[recipe_id] = updated
+        return updated
+
+    async def create_recipe(self, recipe: Recipe) -> Recipe:
+        collision = next(
+            (r for r in self._recipes.values() if r.name == recipe.name), None
+        )
+        if collision is not None:
+            raise ValueError(f"A recipe named '{recipe.name}' already exists.")
+        new = replace(recipe, times_used=0, last_used_at=None)
+        self._recipes[new.id] = new
+        return new
+
+    async def full_update_recipe(
+        self,
+        recipe_id: UUID,
+        name: str,
+        emoji: str,
+        prep_time: int,
+        key_ingredients: list,
+        ingredients: list,
+        source_url,
+        cooking_instructions,
+    ) -> Optional[Recipe]:
+        r = self._recipes.get(recipe_id)
+        if r is None:
+            return None
+        collision = next(
+            (v for k, v in self._recipes.items() if v.name == name and k != recipe_id),
+            None,
+        )
+        if collision is not None:
+            raise ValueError(f"A recipe named '{name}' already exists.")
+        updated = replace(
+            r,
+            name=name,
+            emoji=emoji,
+            prep_time=prep_time,
+            key_ingredients=key_ingredients,
+            ingredients=ingredients,
+            source_url=source_url,
+            cooking_instructions=cooking_instructions,
+        )
         self._recipes[recipe_id] = updated
         return updated
 
@@ -195,6 +239,17 @@ class FakeAIPort(AIPort):
     async def generate_instructions(self, recipe: Recipe) -> List[str]:
         self.last_instructions_recipe = recipe
         return [f"Step 1: Prepare {recipe.name}.", f"Step 2: Cook and serve."]
+
+    async def parse_recipe_from_url(self, url: str) -> Recipe:
+        from uuid import uuid4
+        return Recipe(
+            id=uuid4(),
+            name="Parsed Recipe",
+            emoji="🍽️",
+            prep_time=30,
+            ingredients=[],
+            key_ingredients=["ingredient"],
+        )
 
 
 class FakeExportPort(ExportPort):

@@ -4,6 +4,7 @@ import { groceryApi } from '@/api/grocery'
 import { usePlanStore } from '@/stores/plan'
 import type { GroceryListItem } from '@/types'
 import { CATEGORY_LABELS } from '@/types'
+import { formatQuantity } from '@/utils/format'
 import { computed, onMounted, ref } from 'vue'
 
 const planStore = usePlanStore()
@@ -89,7 +90,7 @@ async function exportCsv() {
                   {{ item.recipe_names.join(', ') }}
                 </span>
               </div>
-              <span class="item-row__qty">{{ item.quantity }} {{ item.unit }}</span>
+              <span class="item-row__qty">{{ formatQuantity(item.quantity) }} {{ item.unit }}</span>
             </div>
           </div>
         </div>

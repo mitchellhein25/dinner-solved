@@ -92,6 +92,20 @@ export interface GenerationBudget {
   resetsAt: string | null // ISO timestamp, null if budget not yet started
 }
 
+/**
+ * Recipe data for create/update — no server-assigned fields.
+ * Used by RecipeForm, AddRecipe, EditRecipe.
+ */
+export interface RecipeDraft {
+  name: string
+  emoji: string
+  prep_time: number
+  ingredients: Ingredient[]
+  key_ingredients: string[]
+  source_url: string | null
+  cooking_instructions: string[] | null
+}
+
 /** Summary item returned by GET /api/recipes. */
 export interface RecipeListItem {
   id: string

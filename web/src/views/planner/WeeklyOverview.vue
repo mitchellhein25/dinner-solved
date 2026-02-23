@@ -6,6 +6,7 @@ import { usePlanStore } from '@/stores/plan'
 import type { ConfirmedAssignment } from '@/types'
 import { DAY_LABELS, MEAL_TYPE_LABELS } from '@/types'
 import { formatWeekRange } from '@/utils/date'
+import { formatQuantity } from '@/utils/format'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -44,7 +45,7 @@ function servingTotal(slot: { member_ids: string[]; days: string[] }): string {
     .filter((m) => slot.member_ids.includes(m.id))
     .reduce((s, m) => s + m.serving_size, 0)
   const scaled = Math.round(total * slot.days.length * 100) / 100
-  return `${scaled} servings × ${slot.days.length} nights`
+  return `${formatQuantity(scaled)} servings × ${slot.days.length} nights`
 }
 
 function suggest() {

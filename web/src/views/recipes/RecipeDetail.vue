@@ -4,6 +4,7 @@ import { recipesApi } from '@/api/recipes'
 import { useRecipesStore } from '@/stores/recipes'
 import { CATEGORY_LABELS } from '@/types'
 import type { Ingredient, RecipeDetail } from '@/types'
+import { formatQuantity } from '@/utils/format'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -209,7 +210,7 @@ async function deleteRecipe() {
             <div class="ingredient-list">
               <div v-for="ing in items" :key="ing.name" class="ingredient-row">
                 <span class="ingredient-row__name">{{ ing.name }}</span>
-                <span class="ingredient-row__qty">{{ ing.quantity }} {{ ing.unit }}</span>
+                <span class="ingredient-row__qty">{{ formatQuantity(ing.quantity) }} {{ ing.unit }}</span>
               </div>
             </div>
           </div>
@@ -238,6 +239,9 @@ async function deleteRecipe() {
 
         <!-- Actions row -->
         <div class="actions-row">
+          <router-link class="btn btn--ghost btn--sm" :to="`/recipes/${recipe.id}/edit`">
+            ✏️ Edit
+          </router-link>
           <button
             class="btn btn--ghost btn--sm"
             :disabled="downloadingPdf"

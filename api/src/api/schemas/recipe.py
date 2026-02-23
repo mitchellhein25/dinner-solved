@@ -11,6 +11,21 @@ class IngredientSchema(BaseModel):
     category: str  # GroceryCategory value
 
 
+class RecipeInputSchema(BaseModel):
+    """Full recipe payload for create (POST) and full update (PUT)."""
+    name: str
+    emoji: str
+    prep_time: int
+    ingredients: list[IngredientSchema]
+    key_ingredients: list[str]
+    source_url: str | None = None
+    cooking_instructions: list[str] | None = None
+
+
+class ImportRecipeRequest(BaseModel):
+    url: str
+
+
 class RecipeSchema(BaseModel):
     """Lightweight schema used in the planning flow (suggest / refine / confirm)."""
     id: UUID

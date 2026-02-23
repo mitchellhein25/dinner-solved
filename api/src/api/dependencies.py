@@ -11,9 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.use_cases.build_grocery_list import BuildGroceryListUseCase
 from application.use_cases.confirm_plan import ConfirmPlanUseCase
+from application.use_cases.create_recipe import CreateRecipeUseCase
 from application.use_cases.delete_recipe import DeleteRecipeUseCase
+from application.use_cases.full_update_recipe import FullUpdateRecipeUseCase
 from application.use_cases.generate_instructions import GenerateInstructionsUseCase
 from application.use_cases.get_recipe import GetRecipeUseCase
+from application.use_cases.import_recipe import ImportRecipeUseCase
 from application.use_cases.list_recipes import ListRecipesUseCase
 from application.use_cases.manage_household import ManageHouseholdUseCase
 from application.use_cases.manage_template import ManageTemplateUseCase
@@ -244,6 +247,22 @@ def get_generate_instructions(
     return GenerateInstructionsUseCase(recipe_repo=recipe_repo, ai_port=get_ai_adapter())
 
 
+
+
+def get_import_recipe() -> ImportRecipeUseCase:
+    return ImportRecipeUseCase(ai_port=get_ai_adapter())
+
+
+def get_create_recipe(
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
+) -> CreateRecipeUseCase:
+    return CreateRecipeUseCase(recipe_repo=recipe_repo)
+
+
+def get_full_update_recipe(
+    recipe_repo: Annotated[PostgresRecipeRepository, Depends(get_recipe_repo)],
+) -> FullUpdateRecipeUseCase:
+    return FullUpdateRecipeUseCase(recipe_repo=recipe_repo)
 
 
 def get_build_grocery_list(

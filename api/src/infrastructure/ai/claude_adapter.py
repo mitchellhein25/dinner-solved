@@ -2,10 +2,35 @@ import json
 from typing import List
 from uuid import uuid4
 
+import httpx
 from anthropic import AsyncAnthropic
 
 from application.ports.ai_port import AIPort, RefinementRequest, SuggestionRequest
 from domain.entities.recipe import GroceryCategory, Ingredient, Recipe
+
+_VALID_CATEGORIES = {c.value for c in GroceryCategory}
+
+
+def _safe_category(value: str) -> GroceryCategory:
+    """Return the matching GroceryCategory, falling back to OTHER for unknown values."""
+    return GroceryCategory(value) if value in _VALID_CATEGORIES else GroceryCategory.OTHER
+
+
+def _extract_json_object(text: str) -> str:
+    """
+    Robustly extract the first top-level JSON object from a string.
+    Handles:
+    - Pure JSON: '{"key": "value"}'
+    - Code-fenced JSON: '```json\n{...}\n```'
+    - JSON with surrounding prose: 'Here is the recipe:\n{...}'
+    Raises ValueError if no JSON object is found.
+    """
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError(f"No JSON object found in AI response. Raw output: {text[:200]!r}")
+    return text[start : end + 1]
+
 
 # The model ID must match an available Claude model.
 DEFAULT_MODEL = "claude-sonnet-4-6"
@@ -201,6 +226,90 @@ class ClaudeAdapter(AIPort):
 
         return result
 
+    async def parse_recipe_from_url(self, url: str) -> Recipe:
+        """Fetch a webpage via tool use and extract a recipe from it."""
+        fetch_tool = {
+            "name": "fetch_webpage",
+            "description": "Fetch the HTML content of a webpage to extract recipe information.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The URL to fetch"},
+                },
+                "required": ["url"],
+            },
+        }
+        system = (
+            "You are a recipe parser for Dinner Solved. Use the fetch_webpage tool to retrieve "
+            "the page, then extract the recipe and return it as a single JSON object.\n\n"
+            "The JSON must follow this exact structure:\n"
+            "{\n"
+            '  "name": "Recipe Name",\n'
+            '  "emoji": "🍝",\n'
+            '  "prep_time": 30,\n'
+            '  "key_ingredients": ["ingredient1", "ingredient2", "ingredient3"],\n'
+            '  "ingredients": [\n'
+            '    {"name": "ingredient name", "quantity": 1.5, "unit": "lbs", "category": "meat"}\n'
+            "  ],\n"
+            '  "cooking_instructions": ["Step 1...", "Step 2..."]\n'
+            "}\n\n"
+            "IMPORTANT: All ingredient quantities must be for exactly 1 standard serving.\n"
+            "Valid category values: produce, meat, dairy, pantry, frozen, bakery, other\n"
+            'If the page contains no recipe, return {"error": "No recipe found"}.\n'
+            "Respond ONLY with the JSON object. No additional text."
+        )
+        messages: list = [{"role": "user", "content": f"Extract the recipe from this URL: {url}"}]
+
+        # Agentic loop — let Claude call the tool until it produces a final response
+        for _ in range(5):  # max 5 turns (in practice 2: fetch + parse)
+            response = await self._client.messages.create(
+                model=self._model,
+                max_tokens=4096,
+                system=system,
+                tools=[fetch_tool],
+                messages=messages,
+            )
+
+            if response.stop_reason == "tool_use":
+                # Collect all tool calls in this turn
+                tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use" and block.name == "fetch_webpage":
+                        fetch_url = block.input.get("url", url)
+                        try:
+                            async with httpx.AsyncClient(
+                                follow_redirects=True, timeout=15.0
+                            ) as client:
+                                r = await client.get(
+                                    fetch_url,
+                                    headers={"User-Agent": "Mozilla/5.0 (compatible; DinnerSolvedBot/1.0)"},
+                                )
+                                content = r.text[:40000]  # cap to ~10k tokens
+                        except Exception as exc:
+                            content = f"Error fetching URL: {exc}"
+                        tool_results.append(
+                            {"type": "tool_result", "tool_use_id": block.id, "content": content}
+                        )
+
+                # Append assistant turn + tool results and continue
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({"role": "user", "content": tool_results})
+                continue
+
+            # stop_reason == "end_turn" — extract and parse the JSON response
+            raw = next(
+                (b.text for b in response.content if b.type == "text"), ""
+            ).strip()
+            raw = _extract_json_object(raw)
+            data = json.loads(raw)
+            if "error" in data:
+                raise ValueError(data["error"])
+            recipe = self._parse_recipe_with_instructions(data)
+            recipe.source_url = url
+            return recipe
+
+        raise ValueError("Failed to extract recipe after multiple attempts")
+
     @staticmethod
     def _parse_recipe(data: dict) -> Recipe:
         ingredients = [
@@ -219,4 +328,31 @@ class ClaudeAdapter(AIPort):
             prep_time=int(data.get("prep_time", 30)),
             ingredients=ingredients,
             key_ingredients=list(data.get("key_ingredients", [])),
+        )
+
+    @staticmethod
+    def _parse_recipe_with_instructions(data: dict) -> Recipe:
+        """Like _parse_recipe but also captures cooking_instructions if present."""
+        ingredients = [
+            Ingredient(
+                name=ing["name"],
+                quantity=float(ing["quantity"]),
+                unit=ing["unit"],
+                category=_safe_category(ing.get("category", "other")),
+            )
+            for ing in data.get("ingredients", [])
+        ]
+        instructions = data.get("cooking_instructions")
+        if isinstance(instructions, list):
+            instructions = [str(s) for s in instructions] or None
+        else:
+            instructions = None
+        return Recipe(
+            id=uuid4(),
+            name=data["name"],
+            emoji=data.get("emoji", "🍽️"),
+            prep_time=int(data.get("prep_time", 30)),
+            ingredients=ingredients,
+            key_ingredients=list(data.get("key_ingredients", [])),
+            cooking_instructions=instructions,
         )

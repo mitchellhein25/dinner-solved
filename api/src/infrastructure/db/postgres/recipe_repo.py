@@ -152,6 +152,62 @@ class PostgresRecipeRepository(RecipeRepository):
         await self._session.flush()
         return self._to_entity(row)
 
+    async def create_recipe(self, recipe: Recipe) -> Recipe:
+        existing = await self._find_row_by_name(recipe.name)
+        if existing is not None:
+            raise ValueError(f"A recipe named '{recipe.name}' already exists.")
+        row = RecipeRow(
+            id=recipe.id,
+            household_id=self._household_id,
+            name=recipe.name,
+            emoji=recipe.emoji,
+            prep_time=recipe.prep_time,
+            key_ingredients=recipe.key_ingredients,
+            is_favorite=False,
+            source_url=recipe.source_url,
+            cooking_instructions=recipe.cooking_instructions,
+            times_used=0,
+            last_used_at=None,
+        )
+        for ing in recipe.ingredients:
+            row.ingredients.append(self._ingredient_row(ing))
+        self._session.add(row)
+        await self._session.flush()
+        return self._to_entity(row)
+
+    async def full_update_recipe(
+        self,
+        recipe_id: UUID,
+        name: str,
+        emoji: str,
+        prep_time: int,
+        key_ingredients: List[str],
+        ingredients: List[Ingredient],
+        source_url: Optional[str],
+        cooking_instructions: Optional[List[str]],
+    ) -> Optional[Recipe]:
+        row = await self._find_row_by_id(recipe_id)
+        if row is None:
+            return None
+        if row.name != name:
+            existing = await self._find_row_by_name(name)
+            if existing is not None and existing.id != recipe_id:
+                raise ValueError(f"A recipe named '{name}' already exists.")
+        row.name = name
+        row.emoji = emoji
+        row.prep_time = prep_time
+        row.key_ingredients = key_ingredients
+        row.source_url = source_url
+        row.cooking_instructions = cooking_instructions
+        # Replace ingredient list
+        for ing in list(row.ingredients):
+            await self._session.delete(ing)
+        await self._session.flush()
+        for ing in ingredients:
+            row.ingredients.append(self._ingredient_row(ing))
+        await self._session.flush()
+        return self._to_entity(row)
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------

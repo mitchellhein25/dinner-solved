@@ -1,4 +1,4 @@
-import type { RecipeDetail, RecipeListItem } from '@/types'
+import type { RecipeDetail, RecipeDraft, RecipeListItem } from '@/types'
 import { apiClient } from './client'
 
 export const recipesApi = {
@@ -43,5 +43,20 @@ export const recipesApi = {
     a.download = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.pdf`
     a.click()
     URL.revokeObjectURL(url)
+  },
+
+  async importFromUrl(url: string): Promise<RecipeDetail> {
+    const res = await apiClient.post('/api/recipes/import', { url })
+    return res.data
+  },
+
+  async createRecipe(draft: RecipeDraft): Promise<RecipeDetail> {
+    const res = await apiClient.post('/api/recipes/', draft)
+    return res.data
+  },
+
+  async updateRecipeFull(id: string, draft: RecipeDraft): Promise<RecipeDetail> {
+    const res = await apiClient.put(`/api/recipes/${id}`, draft)
+    return res.data
   },
 }

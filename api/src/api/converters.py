@@ -17,7 +17,7 @@ from .schemas.plan import (
     RecipeOptionsSchema,
 )
 from .schemas.preferences import PreferencesSchema
-from .schemas.recipe import IngredientSchema, RecipeDetailSchema, RecipeListItemSchema, RecipeSchema
+from .schemas.recipe import IngredientSchema, RecipeDetailSchema, RecipeInputSchema, RecipeListItemSchema, RecipeSchema
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +101,18 @@ def schema_to_recipe(s: RecipeSchema) -> Recipe:
         is_favorite=s.is_favorite,
         source_url=s.source_url,
     )
+
+
+def recipe_input_to_ingredients(items: list) -> list:
+    return [
+        Ingredient(
+            name=i.name,
+            quantity=i.quantity,
+            unit=i.unit,
+            category=GroceryCategory(i.category),
+        )
+        for i in items
+    ]
 
 
 # ---------------------------------------------------------------------------
